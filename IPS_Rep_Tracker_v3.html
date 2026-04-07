@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="IPS Tracker">
+<meta name="theme-color" content="#5C7A1F">
+<title>IPS Rep Tracker</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--g:#5C7A1F;--r:#A8193D;--gold:#E8B840;--lg:#f7f9f3;--border:#e2e8d5;--text:#1a2010;--muted:#6b7a5a;--shadow:0 1px 4px rgba(0,0,0,.07)}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--lg);color:var(--text);min-height:100vh;font-size:15px}
+.screen{display:none;min-height:100vh;flex-direction:column}
+.screen.active{display:flex}
+
+/* SETUP */
+#s-setup{align-items:center;background:var(--lg);padding:1.5rem 1.25rem}
+.setup-logo{display:flex;gap:4px;margin-bottom:1.25rem;margin-top:.5rem}
+.sl1{width:18px;height:50px;background:var(--g);border-radius:3px}
+.sl2{width:18px;height:50px;background:var(--r);border-radius:3px}
+.setup-box{background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px;width:100%;max-width:460px;box-shadow:var(--shadow)}
+.setup-ttl{font-size:19px;font-weight:700;margin-bottom:4px}
+.setup-sub{font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.5}
+.step-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:13px}
+.step-num{display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--g);color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.step-body{font-size:13px;color:var(--text);line-height:1.6;flex:1}
+.sql-block{background:#1a2010;color:#b8d98a;font-family:'Courier New',monospace;font-size:10px;padding:11px;border-radius:8px;margin:7px 0;line-height:1.6;white-space:pre-wrap;word-break:break-all;position:relative}
+.copy-btn{position:absolute;top:7px;right:7px;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:5px;padding:3px 8px;font-size:10px;cursor:pointer}
+.copy-btn:hover{background:rgba(255,255,255,.3)}
+.divider{border:none;border-top:1px solid var(--border);margin:18px 0}
+.ntfy-section{background:#fff8e6;border:1px solid #f0d060;border-radius:10px;padding:14px;margin-bottom:14px}
+.ntfy-ttl{font-size:12px;font-weight:700;color:#8a5a00;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+.ntfy-body{font-size:12px;color:#6a4a00;line-height:1.5;margin-bottom:10px}
+.topic-row{display:flex;gap:8px;align-items:center}
+.topic-row input{flex:1;padding:9px 10px;border:1.5px solid #e0c050;border-radius:7px;font-size:13px;background:#fff}
+.gen-btn{background:#e8b840;color:#5a3a00;border:none;border-radius:7px;padding:9px 11px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+
+/* SHARED FORM */
+.field{margin-bottom:13px}
+.field label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;color:var(--text);background:#fff;font-family:inherit;-webkit-appearance:none}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--g)}
+.req{color:var(--r)}
+.field-hint{font-size:11px;color:var(--muted);margin-top:3px}
+.primary-btn{width:100%;background:var(--g);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer}
+.primary-btn:disabled{opacity:.5;cursor:not-allowed}
+.msg{font-size:12px;padding:8px 12px;border-radius:7px;margin-top:10px;display:none;line-height:1.4}
+.msg.ok{background:#e8f5d4;color:#3a5a10;border:1px solid #b8d98a}
+.msg.err{background:#fce8ee;color:#8a0a2a;border:1px solid #f0a0b8}
+.msg.info{background:#fff8e6;color:#8a5a00;border:1px solid #f0d060}
+
+/* LOGIN */
+#s-login{align-items:center;justify-content:center;padding:2rem 1.25rem}
+.login-logo{display:flex;gap:4px;margin-bottom:1.25rem}
+.ll1{width:20px;height:54px;background:var(--g);border-radius:3px}
+.ll2{width:20px;height:54px;background:var(--r);border-radius:3px}
+.login-ttl{font-size:21px;font-weight:700;margin-bottom:3px;text-align:center}
+.login-sub{font-size:13px;color:var(--muted);margin-bottom:1.5rem;text-align:center}
+.rep-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;width:100%;max-width:340px}
+.rep-btn{background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:13px 10px;cursor:pointer;text-align:center;font-size:13px;font-weight:600;color:var(--text);line-height:1.3;transition:all .15s}
+.rep-btn:hover{border-color:var(--g);background:#f0f5e8}
+.rep-btn.branch{border-style:dashed}
+.rep-btn span{display:block;font-size:10px;font-weight:400;color:var(--muted);margin-top:2px}
+.reconfig-link{margin-top:1.5rem;font-size:12px;color:var(--muted);text-align:center}
+.reconfig-link a{color:var(--g);cursor:pointer;text-decoration:underline}
+
+/* APP SHELL */
+.topbar{background:var(--g);padding:11px 14px;display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:200}
+.tb-logo{display:flex;gap:3px}
+.tbl1{width:6px;height:20px;background:rgba(255,255,255,.9);border-radius:2px}
+.tbl2{width:6px;height:20px;background:var(--gold);border-radius:2px}
+.tb-name{color:#fff;font-weight:700;font-size:14px;flex:1}
+.tb-rep{font-size:10px;color:rgba(255,255,255,.8);background:rgba(0,0,0,.18);padding:3px 8px;border-radius:99px;white-space:nowrap}
+.tb-switch{background:none;border:none;color:rgba(255,255,255,.65);font-size:11px;cursor:pointer;padding:4px 6px;white-space:nowrap}
+.tabs{background:#fff;border-bottom:1px solid var(--border);display:flex;overflow-x:auto;scrollbar-width:none;position:sticky;top:43px;z-index:99}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:11px 15px;font-size:12.5px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none}
+.tab.active{color:var(--g);border-bottom-color:var(--g)}
+.content{padding:14px;max-width:960px;margin:0 auto;width:100%}
+
+/* CARDS */
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:15px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card-ttl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:13px}
+
+/* LOG FORM */
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.chip{padding:8px 14px;border-radius:99px;font-size:12.5px;font-weight:600;border:1.5px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;transition:all .12s}
+.chip.sel{background:var(--g);color:#fff;border-color:var(--g)}
+.stars{display:flex;gap:4px;margin-top:4px}
+.star{font-size:28px;cursor:pointer;color:#ddd;line-height:1;user-select:none}
+.star.on{color:var(--gold)}
+.submit-btn{width:100%;background:var(--g);color:#fff;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;cursor:pointer}
+.submit-btn:disabled{opacity:.6}
+.success-banner{background:#e8f5d4;border:1px solid #b8d98a;color:#3a5a10;padding:11px 14px;border-radius:9px;font-size:13px;font-weight:600;display:none;margin-bottom:12px}
+
+/* CUSTOMER SEARCH */
+.cust-wrap{position:relative}
+.cust-input{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;color:var(--text);background:#fff}
+.cust-input:focus{outline:none;border-color:var(--g)}
+.cust-dd{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--g);border-top:none;border-radius:0 0 9px 9px;max-height:185px;overflow-y:auto;z-index:300;display:none;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+.cust-opt{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f0f4e8}
+.cust-opt:hover{background:var(--lg)}
+
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:12px}
+.metric{background:#fff;border:1px solid var(--border);border-radius:10px;padding:13px 12px;box-shadow:var(--shadow)}
+.metric-val{font-size:24px;font-weight:700;color:var(--text)}
+.metric-lbl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+.metric.warn .metric-val{color:var(--r)}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:580px}
+th{text-align:left;padding:8px 9px;font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);background:#fafdf6;white-space:nowrap}
+td{padding:8px 9px;border-bottom:1px solid #f0f4e8;vertical-align:middle}
+tr:hover td{background:#f7fbf0}
+.badge{font-size:10px;padding:2px 7px;border-radius:99px;font-weight:700;white-space:nowrap}
+.b-act{background:#e8f5d4;color:#3a5a10}
+.b-risk{background:#fff3cd;color:#8a5a00}
+.b-lap{background:#fce8ee;color:#8a0a2a}
+.dots{display:flex;gap:2px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%}
+.dot-on{background:var(--gold)}
+.dot-off{background:#ddd}
+
+/* FILTERS & EXPORT */
+.toolbar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+.toolbar input,.toolbar select{font-size:12px;padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;background:#fff;color:var(--text);min-width:110px}
+.toolbar input{flex:1}
+.export-btn{background:#fff;border:1.5px solid var(--g);color:var(--g);border-radius:7px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.export-btn:hover{background:var(--lg)}
+
+/* HISTORY */
+.hist-item{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;box-shadow:var(--shadow)}
+.hist-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px}
+.hist-cust{font-weight:700;font-size:13px}
+.hist-date{font-size:11px;color:var(--muted);white-space:nowrap}
+.hist-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:4px}
+.htag{font-size:10px;padding:2px 7px;border-radius:99px;font-weight:600;background:var(--lg);color:var(--muted);border:1px solid var(--border)}
+.hist-issue{font-size:11px;color:var(--r);font-weight:600;margin-bottom:3px}
+.hist-notes{font-size:12px;color:var(--muted);line-height:1.5}
+.hist-next{font-size:11px;font-weight:600;color:var(--g);margin-top:3px}
+
+/* HEAT MAP */
+.hmap-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.hmap-header select{font-size:12px;padding:6px 9px;border:1.5px solid var(--border);border-radius:7px;background:#fff}
+.hmap-legend{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);font-weight:600}
+.leg-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
+.hmap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:7px}
+.hmap-cell{border-radius:9px;padding:10px 9px;cursor:default;transition:transform .1s;border:1px solid transparent}
+.hmap-cell:hover{transform:scale(1.02);z-index:2;box-shadow:0 3px 10px rgba(0,0,0,.12)}
+.hc-name{font-size:11.5px;font-weight:600;line-height:1.3;margin-bottom:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.hc-rep{font-size:9.5px;font-weight:500;opacity:.75;margin-bottom:2px}
+.hc-days{font-size:11px;font-weight:700}
+.hc-never{font-size:10px;font-weight:600;opacity:.6}
+/* Heat colours */
+.hc-hot{background:#e8f5d4;border-color:#b8d98a;color:#2a4a08}
+.hc-warm{background:#d4edbc;border-color:#9cc870;color:#2a4a08}
+.hc-warn{background:#fff3cd;border-color:#e8c830;color:#6a4a00}
+.hc-risk{background:#ffe0b0;border-color:#f0a040;color:#6a2a00}
+.hc-lapse{background:#fce8ee;border-color:#e8a0b8;color:#6a0a20}
+.hc-bad{background:#f8d0dc;border-color:#d86080;color:#5a0818}
+.hc-never{background:#f5f5f5;border-color:#ddd;color:#888}
+
+/* ADMIN */
+.add-row{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
+.add-row input,.add-row select{flex:1;min-width:130px;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;color:var(--text);background:#fff}
+.add-btn{background:var(--g);color:#fff;border:none;border-radius:7px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.admin-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f0f4e8}
+.admin-name{flex:1;font-size:13px;font-weight:500}
+.admin-rep{font-size:11px;color:var(--muted);flex:0 0 135px}
+.admin-del{background:none;border:none;color:#ccc;font-size:16px;cursor:pointer;padding:2px 6px;border-radius:5px}
+.admin-del:hover{color:var(--r);background:#fce8ee}
+
+/* SEED */
+#s-seed{align-items:center;justify-content:center;padding:2rem}
+.seed-box{background:#fff;border:1px solid var(--border);border-radius:14px;padding:22px;width:100%;max-width:380px;text-align:center;box-shadow:var(--shadow)}
+.seed-ttl{font-size:18px;font-weight:700;margin-bottom:8px}
+.seed-sub{font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.5}
+.seed-prog{height:6px;background:var(--border);border-radius:99px;overflow:hidden;margin:12px 0}
+.seed-bar{height:6px;background:var(--g);width:0;transition:width .2s}
+
+/* UTILS */
+.loading{text-align:center;padding:2.5rem;color:var(--muted);font-size:13px}
+.spinner{display:inline-block;width:22px;height:22px;border:2px solid var(--border);border-top-color:var(--g);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:2.5rem 1rem;color:var(--muted)}
+.empty-ico{font-size:32px;margin-bottom:8px;opacity:.35}
+.empty p{font-size:13px}
+</style>
+</head>
+<body>
+
+<!-- SETUP -->
+<div id="s-setup" class="screen">
+<div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:1.5rem 1.25rem;max-width:500px;margin:0 auto">
+  <div class="setup-logo"><div class="sl1"></div><div class="sl2"></div></div>
+  <div class="setup-box">
+    <div class="setup-ttl">First-time setup</div>
+    <div class="setup-sub">Connect IPS Rep Tracker to a free Supabase database so all your reps sync in real time. Takes about 5 minutes.</div>
+
+    <div class="step-row"><span class="step-num">1</span><div class="step-body">Create a free account at <a href="https://supabase.com" target="_blank" style="color:var(--g)">supabase.com</a> → New project → name it <strong>IPS-Tracker</strong></div></div>
+    <div class="step-row"><span class="step-num">2</span><div class="step-body"><strong>Create the tables.</strong> Go to SQL Editor → New query → paste &amp; run:</div></div>
+    <div class="sql-block" id="sql-block">create table public.customers (
+  id bigserial primary key,
+  name text not null,
+  rep text not null default '',
+  created_at timestamptz default now()
+);
+create table public.visits (
+  id bigserial primary key,
+  rep text not null,
+  customer text not null,
+  visit_date date not null,
+  visit_type text default 'In-person',
+  has_order boolean default false,
+  issues text default '',
+  notes text default '',
+  next_visit date,
+  score integer,
+  created_at timestamptz default now()
+);
+alter table public.customers enable row level security;
+alter table public.visits enable row level security;
+create policy "open" on public.customers for all using (true) with check (true);
+create policy "open" on public.visits for all using (true) with check (true);<button class="copy-btn" onclick="copySql()">Copy</button></div>
+
+    <div class="step-row"><span class="step-num">3</span><div class="step-body"><strong>Get your credentials.</strong> Project Settings → API → copy the Project URL and <em>anon/public</em> key.</div></div>
+
+    <div class="field"><label>Project URL</label><input type="url" id="cfg-url" placeholder="https://xxxxxxxxxxxx.supabase.co"></div>
+    <div class="field"><label>Anon / Public Key</label><input type="text" id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></div>
+
+    <hr class="divider">
+
+    <div class="ntfy-section">
+      <div class="ntfy-ttl">🔔 Push Notifications (optional)</div>
+      <div class="ntfy-body">Get a phone notification every time a rep logs a visit. Install the free <strong>ntfy</strong> app on your phone (Android &amp; iOS), then subscribe to your topic name below.</div>
+      <div class="topic-row">
+        <input type="text" id="cfg-topic" placeholder="e.g. ips-tracker-abc123">
+        <button class="gen-btn" onclick="genTopic()">Generate</button>
+      </div>
+      <div style="font-size:11px;color:#8a5a00;margin-top:6px">In the ntfy app: tap + → enter this topic name → subscribe. That's it.</div>
+    </div>
+
+    <button class="primary-btn" id="setup-btn" onclick="saveSetup()">Test &amp; Save Connection</button>
+    <div class="msg" id="setup-msg"></div>
+  </div>
+</div>
+</div>
+
+<!-- SEED -->
+<div id="s-seed" class="screen">
+<div class="seed-box">
+  <div style="font-size:36px;margin-bottom:10px">🗄️</div>
+  <div class="seed-ttl">Import customer accounts</div>
+  <div class="seed-sub">Database connected — no customers yet.<br>Import all <strong>970 existing accounts</strong> now?</div>
+  <button class="primary-btn" id="seed-btn" onclick="seedCustomers()">Import 970 customers</button>
+  <div class="seed-prog"><div class="seed-bar" id="seed-bar"></div></div>
+  <div class="msg" id="seed-msg"></div>
+</div>
+</div>
+
+<!-- LOGIN -->
+<div id="s-login" class="screen" style="align-items:center;justify-content:center;padding:2rem 1.25rem">
+  <div class="login-logo"><div class="ll1"></div><div class="ll2"></div></div>
+  <div class="login-ttl">IPS Rep Tracker</div>
+  <div class="login-sub">Independent Paint Supplies Ltd</div>
+  <div class="rep-grid" id="rep-grid"></div>
+  <div class="reconfig-link"><a onclick="showScreen('s-setup')">Database settings</a></div>
+</div>
+
+<!-- APP -->
+<div id="s-app" class="screen" style="min-height:100vh">
+  <div class="topbar">
+    <div class="tb-logo"><div class="tbl1"></div><div class="tbl2"></div></div>
+    <div class="tb-name">IPS Rep Tracker</div>
+    <div class="tb-rep" id="tb-rep"></div>
+    <button class="tb-switch" onclick="switchRep()">← Switch</button>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div class="content" id="content"></div>
+</div>
+
+<script>
+// ===================== SEED DATA =====================
+const SEED = [{"n": "A&A Electrical & Sons Ltd", "r": ""}, {"n": "AGW Body Repairs & Services", "r": "Cardiff Branch"}, {"n": "A1 Autos Malvern Ltd COD", "r": "Derek Williams"}, {"n": "Aberdare Crash Accident Repair Ltd", "r": "Colin Thomas"}, {"n": "Abertawe Cars Limited COD", "r": ""}, {"n": "Abercynon- Trade Centre Wales", "r": ""}, {"n": "ABF Coatings COD", "r": ""}, {"n": "Abfab Welding Ltd", "r": "Cardiff Branch"}, {"n": "A1 Bodyshop Supplies", "r": ""}, {"n": "Absolute Arborists Ltd", "r": ""}, {"n": "AC Autowerks COD", "r": "Swansea Branch"}, {"n": "Ace Accident Repair Centre", "r": "Phil Edwards"}, {"n": "Ace Alloys Swansea", "r": "Phil Edwards"}, {"n": "Ace Alloys Ltd Cardiff", "r": "Cardiff Branch"}, {"n": "ACIS Ltd", "r": ""}, {"n": "AC Jenkins Ltd", "r": "Swansea Branch"}, {"n": "Ackland Motors", "r": ""}, {"n": "Action Rail & Civil Engineering Ltd", "r": "Cardiff Branch"}, {"n": "Adams Auto's Blaenporth", "r": "Derek John"}, {"n": "Adept GRP Enclosures Ltd", "r": "Derek John"}, {"n": "ADL Francis", "r": "Derek John"}, {"n": "Adpar Auto Repairs COD", "r": ""}, {"n": "Adrian Short", "r": "Phil Edwards"}, {"n": "Adrian Llewellyn Groundworks Ltd", "r": "Derek John"}, {"n": "AD Sealants COD", "r": "Swansea Branch"}, {"n": "A&D Vehicle Repair Centre", "r": "Steve North"}, {"n": "AE Elwards Body Repairs", "r": "Steve North"}, {"n": "Afan Auto Bodies COD", "r": ""}, {"n": "Afan Tyre Discount Centre Ltd", "r": ""}, {"n": "AFG Engineering", "r": "Colin Thomas"}, {"n": "Afon Toolmakers & Engineers Ltd", "r": "Colin Thomas"}, {"n": "A2H Live Ltd COD", "r": "Cardiff Branch"}, {"n": "AJ Taylor CRC Ltd T/A Fix Auto Bristol Central", "r": "Derek Williams"}, {"n": "AK Mcknight", "r": "Swansea Branch"}, {"n": "Alan Walker COD", "r": "Derek John"}, {"n": "Alan James A'i Febion Cyf", "r": "Derek John"}, {"n": "Alan Turrell COD", "r": ""}, {"n": "Alan Dixon Auto Repair Services Ltd", "r": "Derek Williams"}, {"n": "Alan The Painter COD", "r": "Swansea Branch"}, {"n": "Albion Accident Repair Centre", "r": "Steve North"}, {"n": "Alexis Joinery", "r": "Cardiff Branch"}, {"n": "Ali Auto", "r": "Cardiff Branch"}, {"n": "Alloycare COD", "r": ""}, {"n": "Amazing Autos / Appliance Universe", "r": "Derek John"}, {"n": "Amcanu Ltd", "r": "Colin Thomas"}, {"n": "AMD Welding Services Ltd", "r": "Derek John"}, {"n": "AM Logistics Ltd T/A AT Morgan & Son", "r": ""}, {"n": "Amman Valley Fabrications", "r": "Derek John"}, {"n": "Amman Garage (Terry Lewis)", "r": "Swansea Branch"}, {"n": "A&M Motors COD", "r": ""}, {"n": "AMS Point Bodyshop COD", "r": "Steve North"}, {"n": "Andrew Cooper Car Body Repairs Ltd", "r": ""}, {"n": "Andrew Jerwood", "r": ""}, {"n": "Andre (Bad Debt)", "r": "Cardiff Branch"}, {"n": "Andrews Refinishing", "r": "Cardiff Branch"}, {"n": "Anthony Davison", "r": "Swansea Branch"}, {"n": "A Paint & Body Repair Ltd COD", "r": "Swansea Branch"}, {"n": "AP Motors COD", "r": "Cardiff Branch"}, {"n": "A1 Premier Coachworks & Restorations", "r": "Derek John"}, {"n": "APS Alloy Refurbishers", "r": "Swansea Branch"}, {"n": "ARB Recovery COD", "r": "Swansea Branch"}, {"n": "Argyle Autos", "r": "Steve North"}, {"n": "AR Harries", "r": "Swansea Branch"}, {"n": "Armstrong Fabrication & Restoration", "r": "Colin Thomas"}, {"n": "Armordillo Ltd COD", "r": ""}, {"n": "ARM", "r": "Steve North"}, {"n": "Arthurton Coachworks Ltd T/A Chipsaway", "r": "Derek Williams"}, {"n": "A&R Welding & Cladding Services", "r": "Swansea Branch"}, {"n": "A&S Commercials Ltd", "r": "Phil Edwards"}, {"n": "Ashleys Autos Ltd", "r": "Swansea Branch"}, {"n": "Ashley Owen", "r": ""}, {"n": "A Spray Paintworks Limited", "r": "Phil Edwards"}, {"n": "Aspinall Motors Ltd", "r": ""}, {"n": "Atomizzedart Motorbike & Helmet Paint COD", "r": ""}, {"n": "Auto Finish Body Repairs", "r": "Phil Edwards"}, {"n": "Autostyle", "r": "Phil Edwards"}, {"n": "Automec", "r": "Phil Edwards"}, {"n": "Autoshine COD", "r": "Swansea Branch"}, {"n": "Autofix Service Centre", "r": "Swansea Branch"}, {"n": "Autodromo Ltd", "r": "Swansea Branch"}, {"n": "Autospray Accident Repair Specialists", "r": "Steve North"}, {"n": "Autocraft ARC Management Services Ltd", "r": ""}, {"n": "Autocraft ( Llanelli )", "r": ""}, {"n": "Autocolour VR", "r": "Steve North"}, {"n": "Autocraft Auto Body Engineers", "r": "Steve North"}, {"n": "Automation", "r": "Cardiff Branch"}, {"n": "Autospray ( Monmouth ) Ltd", "r": "Steve North"}, {"n": "Autobond Bodyshop Ltd", "r": "Steve North"}, {"n": "Auto & Custom Sprayshop Ltd ( ACS )", "r": "Colin Thomas"}, {"n": "Automacaw Ltd", "r": "Steve North"}, {"n": "Autohaus Newport LLP", "r": ""}, {"n": "AutoClinic COD", "r": "Swansea Branch"}, {"n": "Auto King Garage COD", "r": "Cardiff Branch"}, {"n": "Autobody Spray COD", "r": "Steve North"}, {"n": "Auto Bodytech Ltd", "r": "Derek Williams"}, {"n": "Autobody Rescue Ltd", "r": "Derek Williams"}, {"n": "Auto Colour Services", "r": "Derek Williams"}, {"n": "Auto Smarts Repair Ltd COD", "r": "Cardiff Branch"}, {"n": "Autospray Lifton Limited", "r": "Derek Williams"}, {"n": "Avantis Marine Limited", "r": "Swansea Branch"}, {"n": "AWL Bodyshop", "r": "Phil Edwards"}, {"n": "AWP Engineering", "r": "Swansea Branch"}, {"n": "Axer Fabrication COD", "r": ""}, {"n": "Baglan Car Centre", "r": "Swansea Branch"}, {"n": "Baglan Remapping Ltd COD", "r": "Swansea Branch"}, {"n": "Balmoral Motorhomes Ltd", "r": "Colin Thomas"}, {"n": "Balmoral Tanks Ltd", "r": "Colin Thomas"}, {"n": "Bank Farm Towing & Trailers Ltd", "r": ""}, {"n": "Baptt Shopfitters Ltd", "r": "Colin Thomas"}, {"n": "Barry Lewis COD", "r": "Derek John"}, {"n": "Bassetts Accident Repair Centre", "r": "Phil Edwards"}, {"n": "BBS Broadway Bodyshop", "r": "Phil Edwards"}, {"n": "Bears Smart Repairs", "r": "Phil Edwards"}, {"n": "Bearbones 4x4 Ltd", "r": ""}, {"n": "Be Independent Campers", "r": "Steve North"}, {"n": "Bernard Davies Commercials", "r": "Swansea Branch"}, {"n": "Bespoke-UK Ltd", "r": "Colin Thomas"}, {"n": "Bespoke Spray Shop Ltd COD", "r": "Cardiff Branch"}, {"n": "Bex Airbrushing COD", "r": ""}, {"n": "BJT Paintworks", "r": "Derek Williams"}, {"n": "BJ Thomas & Son Ltd", "r": "Derek John"}, {"n": "Blackhills Caravan Sales Ltd", "r": "Swansea Branch"}, {"n": "Blaze Customs COD", "r": "Swansea Branch"}, {"n": "Blaenwaun Garage Ltd", "r": "Derek John"}, {"n": "Blastd", "r": "Swansea Branch"}, {"n": "Blackline Accident Repairs / Blackline Classic Cars", "r": "Derek Williams"}, {"n": "Blackline Accident Repairs Ltd", "r": "Derek Williams"}, {"n": "Blendini MS Ltd", "r": "Phil Edwards"}, {"n": "BML Autobody Repairs", "r": ""}, {"n": "Bodyshops AJ Price", "r": "Steve North"}, {"n": "Bodyshop Solutions Tredegar Ltd", "r": "Steve North"}, {"n": "Body & Soul Autoworks Ltd", "r": "Phil Edwards"}, {"n": "Body & Paint Temple Bar", "r": "Derek John"}, {"n": "Body Shop Unit 3 COD", "r": "Steve North"}, {"n": "Bonita Blinds T/A Performance Car Valeters COD", "r": "Swansea Branch"}, {"n": "BP Rolls (Newport) Ltd", "r": "Colin Thomas"}, {"n": "B&R Factors Ltd", "r": "Derek John"}, {"n": "Bridgestone Autos Ltd", "r": "Phil Edwards"}, {"n": "Brick Fabrication Ltd", "r": "Colin Thomas"}, {"n": "Brian Ashvale", "r": "Derek John"}, {"n": "Brin Jones Ltd", "r": "Derek Williams"}, {"n": "Bristol Auto Detailing", "r": "Derek Williams"}, {"n": "(Rebate)Brin Jones Rebate Account", "r": ""}, {"n": "Brother Engineering", "r": "Colin Thomas"}, {"n": "Brookes & Carlson Auto Repairs", "r": ""}, {"n": "Brush In Hand Spraying & Decorating Ltd", "r": ""}, {"n": "Bryncethin Trade Centre", "r": ""}, {"n": "Brynteg Services Ltd COD", "r": "Derek John"}, {"n": "Bulk Vending Systems Ltd (BVS)", "r": "Phil Edwards"}, {"n": "Bumps & Scuffs Car Care", "r": "Phil Edwards"}, {"n": "Business Industrial Solutions Ltd", "r": ""}, {"n": "Buy Any Motor Ltd COD", "r": "Swansea Branch"}, {"n": "BX Weldfab COD", "r": ""}, {"n": "CABS Industrial Ltd", "r": ""}, {"n": "CABS Repairs Ltd", "r": ""}, {"n": "CABS Refurbishment Ltd", "r": ""}, {"n": "Caerbont Automotive Instruments Ltd", "r": "Colin Thomas"}, {"n": "Caerleon Accident Repair COD", "r": "Steve North"}, {"n": "Caine Joinery", "r": ""}, {"n": "Cam Sport Ltd", "r": "Swansea Branch"}, {"n": "Cambrian Auto", "r": "Swansea Branch"}, {"n": "Cambrian Valves", "r": ""}, {"n": "Cambrian 4x4 Farm COD", "r": "Derek John"}, {"n": "Campaillas Accident Repair Centre", "r": "Phil Edwards"}, {"n": "Cars & Classics COD", "r": "Swansea Branch"}, {"n": "Carters MOT & Auto Repair Centre", "r": "Phil Edwards"}, {"n": "Car Paint Warehouse", "r": "Swansea Branch"}, {"n": "Cars Aberystwyth", "r": "Derek John"}, {"n": "Cardiff Car Care Ltd T/A Chipsaway", "r": "Steve North"}, {"n": "Cardiff & Vale College", "r": "Steve North"}, {"n": "Carmichaels ACR Ltd", "r": "Steve North"}, {"n": "Car Body Work Specialist Ltd", "r": "Derek Williams"}, {"n": "Carsmetics Ltd", "r": "Swansea Branch"}, {"n": "Carls Car Repairs COD", "r": ""}, {"n": "Cardiff Accident Repair COD", "r": "Steve North"}, {"n": "CARS Ltd COD", "r": "Steve North"}, {"n": "Cardiff Car Sales", "r": "Cardiff Branch"}, {"n": "Cardiff MOT Centre COD", "r": ""}, {"n": "Cardiff Branch Cash On Delivery", "r": "Cardiff Branch"}, {"n": "Carvallo Customs", "r": "Cardiff Branch"}, {"n": "Car Magic (Cardiff) COD", "r": "Derek Williams"}, {"n": "Cardiff Transport Preservation Group", "r": "Cardiff Branch"}, {"n": "Car Wizard COD", "r": "Derek Williams"}, {"n": "Castle Auto Repairs COD", "r": "Steve North"}, {"n": "Cash Factors  COD", "r": ""}, {"n": "Cawdor Cars (Newcastle Emlyn) Ltd", "r": "Swansea Branch"}, {"n": "CD Commercials COD", "r": "Swansea Branch"}, {"n": "Ceejay Autoworx", "r": "Cardiff Branch"}, {"n": "Celtic Automotive Ltd T/A Celtic Mitsubishi", "r": "Swansea Branch"}, {"n": "Celtic Garage", "r": "Swansea Branch"}, {"n": "Celtic Chemicals Limited", "r": ""}, {"n": "Celtic Readymix Ltd", "r": "Derek John"}, {"n": "Celtic Vacuum Limited", "r": "Colin Thomas"}, {"n": "CEM Days Ltd", "r": "Phil Edwards"}, {"n": "Central Bodyshop ARC", "r": "Derek Williams"}, {"n": "Central Garage Hereford Ltd", "r": "Steve North"}, {"n": "Ceri Phil Williams Cars Ltd", "r": ""}, {"n": "CFL Commercials Ltd", "r": "Phil Edwards"}, {"n": "CG Autos", "r": "Swansea Branch"}, {"n": "C&G Body Repairs Llandow", "r": "Colin Thomas"}, {"n": "Chepstow Motors Limited", "r": "Derek Williams"}, {"n": "Chips Away South Essex", "r": "Derek Williams"}, {"n": "Chrysalis Rail Services Ltd", "r": ""}, {"n": "Union Motors", "r": "Phil Edwards"}, {"n": "Chris John Car Sales COD", "r": "Phil Edwards"}, {"n": "Chris Paints Plus COD (Bad Debt)", "r": "Cardiff Branch"}, {"n": "Chris Spiteri & Son Limited", "r": "Derek Williams"}, {"n": "Cimla Forge Ltd COD", "r": ""}, {"n": "Civic Motoring Services Ltd", "r": "Swansea Branch"}, {"n": "CJ Autobody", "r": "Swansea Branch"}, {"n": "CJ Motors", "r": ""}, {"n": "CJ Marine Ltd", "r": ""}, {"n": "CJ Valeting Services COD", "r": "Steve North"}, {"n": "C&K Motors COD", "r": ""}, {"n": "Classic Cars", "r": ""}, {"n": "Classic Spray Painting Wales COD", "r": ""}, {"n": "Classic Car Enterprises", "r": "Steve North"}, {"n": "Clevedon Garages Limited", "r": "Derek Williams"}, {"n": "Clive Sinclair Motors", "r": "Swansea Branch"}, {"n": "Clive Jones Motors", "r": "Phil Edwards"}, {"n": "Clive Barford Ltd", "r": ""}, {"n": "CMH Bodyfix", "r": ""}, {"n": "Coastal Marine Construction Company", "r": "Swansea Branch"}, {"n": "Coleg Gwent", "r": "Steve North"}, {"n": "Colourworx Accident Repair COD", "r": ""}, {"n": "Colin Thomas Cash On Delivery COD", "r": "Colin Thomas"}, {"n": "Compact Cars", "r": "Swansea Branch"}, {"n": "Commercial Colour", "r": "Derek John"}, {"n": "Complete Accident Solutions", "r": "Derek John"}, {"n": "Continental Bodyshop", "r": "Phil Edwards"}, {"n": "Coney Beach Amusements", "r": "Colin Thomas"}, {"n": "Concrete Canvas Limited", "r": "Colin Thomas"}, {"n": "Coopers Car Sales/L&J", "r": "Steve North"}, {"n": "Corbett Williams & Sons Ltd", "r": "Derek John"}, {"n": "Corner Park Garages", "r": "Phil Edwards"}, {"n": "Cornelius Electronics Ltd", "r": "Swansea Branch"}, {"n": "Corrda Logistics Ltd", "r": "Swansea Branch"}, {"n": "Cosmetic Vehicle Repairs", "r": "Derek Williams"}, {"n": "Counter-Cardiff", "r": "Cardiff Branch"}, {"n": "Counter-Swansea", "r": "Swansea Branch"}, {"n": "C&P Markings COD", "r": ""}, {"n": "Crash Bang Wallop Crash Repair Ltd COD", "r": "Steve North"}, {"n": "Crazyman Entrepreneur Ltd", "r": "Derek Williams"}, {"n": "C&R Vehicle Repair Centre - AC Auto Repairs Ltd", "r": "Steve North"}, {"n": "Crynant Plant & Construction Ltd", "r": "Colin Thomas"}, {"n": "Crystal Clear Auto Detailing ( Hawke Details ) COD", "r": ""}, {"n": "CSK Cars & Commercials COD", "r": ""}, {"n": "Custom Leisure Limited", "r": "Derek Williams"}, {"n": "CW Autobody Repairs", "r": "Derek John"}, {"n": "CW Custom Bodyshop", "r": "Phil Edwards"}, {"n": "Cwmtawe Accident Repair Centre", "r": "Phil Edwards"}, {"n": "Cymru Smart Repair", "r": "Steve North"}, {"n": "Cymru Hydraulics Ltd", "r": ""}, {"n": "Cynwyl Autobody Repair & Styling ( CARS )", "r": "Derek John"}, {"n": "DA Evans Haulage", "r": "Swansea Branch"}, {"n": "Dale Sailing Company Ltd", "r": "Derek John"}, {"n": "Damien John Property Maintenance", "r": "Derek John"}, {"n": "DA Neale Ltd", "r": "Steve North"}, {"n": "Daniels Body Repairs", "r": "Swansea Branch"}, {"n": "Darglen Motors Ltd", "r": "Swansea Branch"}, {"n": "Dastan Auto Car Sales Ltd COD", "r": ""}, {"n": "Davies Motor Company Ltd", "r": "Steve North"}, {"n": "David Coe Garage Services", "r": "Swansea Branch"}, {"n": "Davies Coaches Ltd", "r": ""}, {"n": "Dave Phelps Accident Repair Centre Limited", "r": "Phil Edwards"}, {"n": "Dawseys Paintworx COD", "r": "Steve North"}, {"n": "Days Hire T/A Days Rental", "r": "Phil Edwards"}, {"n": "Days Hire T/A Days Rental Tool Account", "r": ""}, {"n": "D&B Autocentre Ltd", "r": "Phil Edwards"}, {"n": "DC Motorsport COD", "r": "Swansea Branch"}, {"n": "DCN Body & Paint Ltd", "r": "Phil Edwards"}, {"n": "DCS Refinishing COD", "r": "Cardiff Branch"}, {"n": "DD Thomas", "r": ""}, {"n": "DDV Smart Solutions Ltd", "r": ""}, {"n": "Dean Richards T/A Autostyle & Spraying", "r": "Steve North"}, {"n": "Demo Gun Account", "r": ""}, {"n": "Deploy Tech Ltd", "r": "Colin Thomas"}, {"n": "DE Phillips COD", "r": "Derek John"}, {"n": "Derwen Garage Ltd", "r": "Derek John"}, {"n": "Derek John COD", "r": "Derek John"}, {"n": "Derek Williams Cash On Delivery", "r": "Derek Williams"}, {"n": "DGC Custom Paint & Graphics", "r": ""}, {"n": "DG Weaver Ltd", "r": "Steve North"}, {"n": "Diamond Alloys Swansea Ltd", "r": "Phil Edwards"}, {"n": "Direct GRP Solutions Ltd", "r": "Swansea Branch"}, {"n": "DCS Accident Repair", "r": "Phil Edwards"}, {"n": "DJ Auto Body Repairs", "r": "Derek John"}, {"n": "DJ Davies Fuels", "r": ""}, {"n": "DJE Accident Repair Centre Ltd", "r": "Derek Williams"}, {"n": "DJ Thomas Coaches Limited", "r": "Swansea Branch"}, {"n": "D&L Autoworks COD", "r": "Colin Thomas"}, {"n": "DLC Cars", "r": "Derek Williams"}, {"n": "DLR Bodyshop Ltd", "r": "Derek Williams"}, {"n": "DMT Refinishing", "r": "Steve North"}, {"n": "Door Fabrications Ltd", "r": "Swansea Branch"}, {"n": "Down Hole Tool", "r": ""}, {"n": "DP Body Repairs Bridgend", "r": "Colin Thomas"}, {"n": "Dragon Engineering Services Ltd", "r": "Colin Thomas"}, {"n": "Dragon Sealants Ltd", "r": "Swansea Branch"}, {"n": "Dreenhill MOT Ltd", "r": "Derek John"}, {"n": "Drive UK", "r": "Steve North"}, {"n": "Drive Connect Ltd COD", "r": "Derek John"}, {"n": "Driftbridge Garage", "r": "Derek Williams"}, {"n": "Drumlord Ltd", "r": "Derek Williams"}, {"n": "D&S Auto", "r": "Phil Edwards"}, {"n": "DS Jones & Son Car Sales", "r": ""}, {"n": "D&S Paint & Body Restorers (Paint & Consumables Only)", "r": "Steve North"}, {"n": "D&S Recovery (Panels Only)", "r": "Steve North"}, {"n": "DT Body Repairs Ltd", "r": ""}, {"n": "DT Jones & Son (Sunnybridge Garage)", "r": ""}, {"n": "Duffys", "r": "Derek John"}, {"n": "DW Engineering COD", "r": "Swansea Branch"}, {"n": "Dyfed Powys Police", "r": ""}, {"n": "Earley Engineering", "r": "Steve North"}, {"n": "East End Garage", "r": "Phil Edwards"}, {"n": "Easyfit Tyres Ltd", "r": ""}, {"n": "Edmunds Webster Joinery Ltd", "r": "Swansea Branch"}, {"n": "Edwards Coaches", "r": "Colin Thomas"}, {"n": "Edward Davies Commercials Ltd", "r": ""}, {"n": "EG Lewis & Co Ltd", "r": "Colin Thomas"}, {"n": "Electechs Ltd", "r": "Swansea Branch"}, {"n": "Electrostatics Ltd T/A Vanda Coatings", "r": "Colin Thomas"}, {"n": "Elite Cars (Wales) Ltd T/A Maesteg Motorhouse", "r": "Swansea Branch"}, {"n": "Elite Refinishing Co COD", "r": "Swansea Branch"}, {"n": "Elite AWRS Cardiff Limited", "r": "Phil Edwards"}, {"n": "Empirical Painting", "r": ""}, {"n": "Enclosure Tec", "r": "Derek John"}, {"n": "Envico Engineering Ltd", "r": "Derek John"}, {"n": "Enzo Logistic Services Ltd COD", "r": ""}, {"n": "Euro Commercials Ltd", "r": "Swansea Branch"}, {"n": "Euro Equipment Limited", "r": ""}, {"n": "Evans Body Repairs", "r": "Derek John"}, {"n": "Evolution Body Repairs Ltd", "r": "Colin Thomas"}, {"n": "Exclusive Body Centre COD", "r": "Swansea Branch"}, {"n": "Excel Power Construction Ltd", "r": "Colin Thomas"}, {"n": "Exeter Motorcycles COD", "r": "Cardiff Branch"}, {"n": "Express Auto Body Repairs", "r": "Phil Edwards"}, {"n": "Express Paints Ltd", "r": ""}, {"n": "Express Metal Services Ltd", "r": "Colin Thomas"}, {"n": "Extreme Customs Bodyshop COD", "r": "Cardiff Branch"}, {"n": "Fab N Sizz ( Clynmawr Farm )", "r": "Derek John"}, {"n": "Fabian Tuzyk T/A FabSmart Repair", "r": "Phil Edwards"}, {"n": "Fairfield Motor Co", "r": ""}, {"n": "FBI VW Services COD", "r": ""}, {"n": "FBU Cars Ltd COD", "r": ""}, {"n": "Feather Edge Refinishing", "r": "Swansea Branch"}, {"n": "Fforest Auto Swansea Ltd", "r": ""}, {"n": "First West Of England Limited", "r": "Derek Williams"}, {"n": "Fix Auto Swansea West", "r": "Phil Edwards"}, {"n": "Fixmar Ltd COD", "r": ""}, {"n": "Flakeys Custom Paint COD", "r": ""}, {"n": "Flawless Detailing COD", "r": "Swansea Branch"}, {"n": "Flora Motors (Cornwall) Ltd T/A Parklands Toyota", "r": "Derek Williams"}, {"n": "FMC Swansea Ltd ( Fabian )", "r": "Swansea Branch"}, {"n": "Forest Car Body Corrections", "r": "Steve North"}, {"n": "Foredowel Limited", "r": "Colin Thomas"}, {"n": "Four Wheels Bodyshop", "r": "Derek John"}, {"n": "Frampton Rd Body Repairs COD", "r": "Phil Edwards"}, {"n": "Freemans (Milford Haven) Ltd", "r": ""}, {"n": "Freddies Garage", "r": ""}, {"n": "Fresh Start Autos", "r": ""}, {"n": "Fresh Image Bodywork", "r": "Phil Edwards"}, {"n": "Freemantle Marine Services Ltd", "r": "Colin Thomas"}, {"n": "Fresh Car Smart Repairs (Stealth Valeting) Ltd", "r": ""}, {"n": "FRF South Wales Ltd", "r": "Swansea Branch"}, {"n": "FRF Motors Ltd", "r": "Swansea Branch"}, {"n": "FRF South Wales (Holdings) Ltd", "r": "Swansea Branch"}, {"n": "Fusion Repairs COD", "r": ""}, {"n": "Galson Engineers COD", "r": ""}, {"n": "Galvablast Ltd", "r": "Colin Thomas"}, {"n": "Gallagher Painter & Decorators Ltd COD", "r": "Swansea Branch"}, {"n": "Gary Rees Station Garage", "r": "Derek John"}, {"n": "Garry Davies Accident Repairs Ltd", "r": "Derek John"}, {"n": "Garage Equipment Solutions COD", "r": ""}, {"n": "Gary Jones Panels & Paint COD", "r": "Swansea Branch"}, {"n": "Gate Automation Systems Ltd (T/A E-Gates)", "r": "Swansea Branch"}, {"n": "G&B Body Repairs Ltd COD", "r": "Phil Edwards"}, {"n": "GB Terminals (Western) Limited", "r": "Derek Williams"}, {"n": "GCJ Automotive Reconditioning", "r": "Swansea Branch"}, {"n": "Geetec Auto T/A Fix Auto Aberdare", "r": "Derek Williams"}, {"n": "Gelli Plant", "r": "Swansea Branch"}, {"n": "Gemmak Engineering Ltd", "r": "Colin Thomas"}, {"n": "Gen Paint Sprayers", "r": "Phil Edwards"}, {"n": "Geoff Findlay Autos", "r": "Phil Edwards"}, {"n": "Gerald D Harries & Son Ltd", "r": ""}, {"n": "Geraint Jones 4x4", "r": "Swansea Branch"}, {"n": "Gestamp Tallent Limited", "r": "Phil Edwards"}, {"n": "GGF Boat Repair Centre", "r": ""}, {"n": "G&G Paintworks", "r": "Derek John"}, {"n": "GH Evans- Quay Garage", "r": "Derek John"}, {"n": "GJ Autos", "r": "Steve North"}, {"n": "G Jones Auto Repairs", "r": ""}, {"n": "Glamorgan Accident Repair Centre", "r": "Phil Edwards"}, {"n": "Glass Tech Windscreens Ltd T/A Able Windscreens", "r": ""}, {"n": "Global Underground Supplies Limited", "r": ""}, {"n": "G&L Staircases Ltd", "r": "Colin Thomas"}, {"n": "GMD Auto Body Repairs", "r": "Phil Edwards"}, {"n": "GM Motors", "r": "Swansea Branch"}, {"n": "Godfreys Crash Repair Centre", "r": "Derek Williams"}, {"n": "Go Explore Vans & Campers COD", "r": "Phil Edwards"}, {"n": "Gower Auto Ltd", "r": "Derek Williams"}, {"n": "GP Body Repairs", "r": "Steve North"}, {"n": "Gravells Accident Repair Centre", "r": "Phil Edwards"}, {"n": "Grampian Commercial Parts Ltd", "r": "Swansea Branch"}, {"n": "Graham COD", "r": "Cardiff Branch"}, {"n": "Greenacres Skip Hire", "r": "Derek John"}, {"n": "Green Acre Solutions Ltd T/A Folly Contractors", "r": ""}, {"n": "Griffin Mill Garages Ltd", "r": "Steve North"}, {"n": "Griffiths Waste Management Ltd", "r": "Phil Edwards"}, {"n": "Grind N Shine", "r": ""}, {"n": "Griffin Spray Coatings", "r": "Derek Williams"}, {"n": "Grove Bodyshop COD", "r": ""}, {"n": "Groundhog (UK) Ltd", "r": "Colin Thomas"}, {"n": "GRP Development Ltd", "r": "Derek John"}, {"n": "GRS Motor Group Ltd", "r": "Derek John"}, {"n": "Guts Surfboards Ltd", "r": "Swansea Branch"}, {"n": "Gwaith Auto Body Repairs", "r": "Phil Edwards"}, {"n": "G Works", "r": "Swansea Branch"}, {"n": "GW Recovery Bridgend", "r": ""}, {"n": "Hall Brothers Transport Ltd", "r": ""}, {"n": "Hamptons Cars Limited", "r": ""}, {"n": "Harlequin Paintworks", "r": "Phil Edwards"}, {"n": "Harris Pye UK Ltd", "r": "Swansea Branch"}, {"n": "Harris Pye Fabrication", "r": "Swansea Branch"}, {"n": "Harbourside Accident Repair Ltd", "r": "Steve North"}, {"n": "Harrisons Vehicle Restorations COD", "r": ""}, {"n": "Harlestone Fencing Ltd", "r": "Swansea Branch"}, {"n": "Haverfordwest Auto Centre", "r": ""}, {"n": "Haworth Autobody Ltd", "r": "Derek John"}, {"n": "Haze Surfcraft", "r": "Swansea Branch"}, {"n": "HC Capel & Sons Ltd", "r": "Steve North"}, {"n": "Hemmels Automotive Ltd", "r": "Steve North"}, {"n": "Hereford Coach & Commercial Refinishers Ltd COD", "r": "Steve North"}, {"n": "Heritage COD", "r": "Steve North"}, {"n": "Hereford Coatings", "r": ""}, {"n": "H1-5hine Mobile Valeting COD ( Hi Shine )", "r": "Swansea Branch"}, {"n": "Hill Insulation Ltd", "r": "Derek John"}, {"n": "HJ Phillips & Son Ltd", "r": ""}, {"n": "Home Respray", "r": "Cardiff Branch"}, {"n": "OCU Hornbill Limited", "r": "Colin Thomas"}, {"n": "Hosking ARC", "r": "Steve North"}, {"n": "JJB Autocare COD", "r": ""}, {"n": "HP Bodyworx", "r": "Steve North"}, {"n": "HP Weldcraft COD", "r": ""}, {"n": "HS Basset & Son Ltd", "r": "Swansea Branch"}, {"n": "Hutchings Hyundai", "r": "Swansea Branch"}, {"n": "Huw Absalom T/A Manordeilo Paint", "r": "Derek John"}, {"n": "ID Auto Refinishing Centre", "r": "Phil Edwards"}, {"n": "IM Accident Repair Centre", "r": "Derek Williams"}, {"n": "Industrial GRP Ltd", "r": "Derek John"}, {"n": "Infinite Auto Spraying Ltd", "r": "Steve North"}, {"n": "Ingram Plant Services Ltd COD", "r": "Colin Thomas"}, {"n": "Innovate Composites", "r": "Derek Williams"}, {"n": "Integrated Fencing Ltd", "r": "Colin Thomas"}, {"n": "International Industrial Supplies", "r": "Colin Thomas"}, {"n": "Iron Fab Engineering Ltd", "r": "Colin Thomas"}, {"n": "Isaac Motors", "r": "Swansea Branch"}, {"n": "Jabro Games Ltd", "r": "Swansea Branch"}, {"n": "James Tractors Ltd", "r": "Derek John"}, {"n": "J Blast Engineering Ltd", "r": "Derek John"}, {"n": "JBT Aerotech UK Ltd", "r": "Colin Thomas"}, {"n": "JC Bodyworks COD", "r": "Steve North"}, {"n": "JC Shotblasting COD", "r": "Derek John"}, {"n": "JD Autos", "r": "Phil Edwards"}, {"n": "J Davies & Son", "r": "Derek John"}, {"n": "JD Body Repairs COD", "r": "Phil Edwards"}, {"n": "JD Marine & Sons Ltd", "r": "Swansea Branch"}, {"n": "Jeff Allen Car Body Repairs COD", "r": ""}, {"n": "JG Autobody", "r": ""}, {"n": "J and J Commercial Body Repair", "r": "Steve North"}, {"n": "JL Motors COD", "r": ""}, {"n": "JLW Services Ltd", "r": "Phil Edwards"}, {"n": "JMC Automotive", "r": "Derek John"}, {"n": "JMG Spraying COD", "r": "Cardiff Branch"}, {"n": "JM Wadey Accident Repair Centre", "r": "Derek Williams"}, {"n": "John Pearce Glynneath Ltd", "r": "Swansea Branch"}, {"n": "John Treharne Engineering Ltd", "r": "Swansea Branch"}, {"n": "John Ex Ken Jones", "r": "Swansea Branch"}, {"n": "John Weaver Contractors Ltd", "r": "Swansea Branch"}, {"n": "John Card Accident Repair Centre", "r": "Derek Williams"}, {"n": "Jopo Customs COD", "r": ""}, {"n": "JPM Prestige Paintwork", "r": ""}, {"n": "JR Bodyworx Ltd", "r": "Phil Edwards"}, {"n": "JS Hussey", "r": "Swansea Branch"}, {"n": "JSLR Ltd T/A The Wheel Specialist", "r": "Steve North"}, {"n": "JT Paint & Bodyworks Ltd", "r": "Colin Thomas"}, {"n": "Kaymac Marine & Civil Engineering Ltd", "r": ""}, {"n": "KD Designs Airbrush Art COD", "r": "Derek John"}, {"n": "Ken Williams Motors Ltd", "r": "Phil Edwards"}, {"n": "KHL Logistics Ltd", "r": "Swansea Branch"}, {"n": "KH Powder Coating COD", "r": ""}, {"n": "King Site Services (SW) Ltd", "r": "Colin Thomas"}, {"n": "KJF Motors", "r": "Swansea Branch"}, {"n": "KJ Hire & Sales Ltd", "r": "Swansea Branch"}, {"n": "Klevedon Coach Painting Co", "r": "Phil Edwards"}, {"n": "KP Agri Ltd", "r": "Colin Thomas"}, {"n": "Krashtechnic Ltd", "r": "Derek Williams"}, {"n": "Krislyn Motors Ltd", "r": "Swansea Branch"}, {"n": "Kris Cars COD", "r": ""}, {"n": "Kustom Skills COD", "r": ""}, {"n": "Lab 06 ECU Calibration COD", "r": ""}, {"n": "Lab Engineering (South Wales)", "r": "Colin Thomas"}, {"n": "LA Industrial Supplies Ltd", "r": "Colin Thomas"}, {"n": "L Davies Motorbody Repairs ( Cilgerran )", "r": "Derek John"}, {"n": "Ledbury Auto Bodyworks", "r": "Steve North"}, {"n": "Lee Bentley Cars Of Garnant Ltd", "r": ""}, {"n": "Leominster Garage Services", "r": ""}, {"n": "Les Whiteman", "r": "Swansea Branch"}, {"n": "Lets Go Travel", "r": "Swansea Branch"}, {"n": "Lewis Brothers ( Broadway Garage )", "r": "Phil Edwards"}, {"n": "Lewis Bespoke Vehicles Ltd", "r": ""}, {"n": "Lewis-Rhydlewis Cyf", "r": ""}, {"n": "LG Body Repairs COD", "r": "Colin Thomas"}, {"n": "Liberty T/A Unit 13 Customs", "r": "Phil Edwards"}, {"n": "Liquid Paintwork", "r": "Phil Edwards"}, {"n": "LJ Autobodies", "r": "Phil Edwards"}, {"n": "Llanelli Motor Company", "r": "Swansea Branch"}, {"n": "Llanelec Precision Engineering Co Ltd", "r": "Colin Thomas"}, {"n": "Llanelli Forge COD", "r": ""}, {"n": "L&L Bodyworx Ltd", "r": "Phil Edwards"}, {"n": "Lloyds Bodyshop", "r": "Steve North"}, {"n": "Lloyd Motors Aberaeron Ltd", "r": "Derek John"}, {"n": "L Maisey Body Repairs", "r": "Derek John"}, {"n": "LNP Services COD", "r": ""}, {"n": "Lodge Van & Car Hire Ltd", "r": "Phil Edwards"}, {"n": "LP Body Repairs Ltd COD", "r": "Swansea Branch"}, {"n": "LVT Body & Paint COD", "r": "Swansea Branch"}, {"n": "Mai Motor Repairs Ltd", "r": "Phil Edwards"}, {"n": "Major Body Repairs", "r": "Steve North"}, {"n": "Manor Diamond Cuts COD", "r": "Swansea Branch"}, {"n": "Maps Logistics Ltd", "r": "Phil Edwards"}, {"n": "Martyn Lewis Accident Repair Centre", "r": "Phil Edwards"}, {"n": "Marshalls Auto Centre ( Any Car )", "r": "Steve North"}, {"n": "Mark Lethbridge Car Sales COD", "r": ""}, {"n": "Marc Powell Cash On Delivery", "r": ""}, {"n": "Mario Car Bodyshop Ltd", "r": "Cardiff Branch"}, {"n": "Matthew John Factors Ltd", "r": "Swansea Branch"}, {"n": "Matthew Spray Painting COD", "r": "Colin Thomas"}, {"n": "Matthew James T/A Mr Scuffs", "r": "Steve North"}, {"n": "MD Body Repairs", "r": "Phil Edwards"}, {"n": "Meadhams Painting & Decorating Services COD", "r": ""}, {"n": "Merc Tech Ltd", "r": "Swansea Branch"}, {"n": "Merit Engineering", "r": "Colin Thomas"}, {"n": "M&G Paint Supplies", "r": "Cardiff Branch"}, {"n": "MG Richards", "r": "Phil Edwards"}, {"n": "Re-coat Solutions Ltd", "r": "Colin Thomas"}, {"n": "Michael Jeffrey Ltd T/A Ponthir Group", "r": "Steve North"}, {"n": "Midway Motors ( Crymych ) Ltd", "r": "Derek John"}, {"n": "Mikes Motors Ltd / Lewis 4x4 Neath", "r": "Swansea Branch"}, {"n": "Mike Poacher & Sons Ltd", "r": "Phil Edwards"}, {"n": "Mike Kirk Enterprises Ltd", "r": "Derek John"}, {"n": "Mills Motors Ltd", "r": "Swansea Branch"}, {"n": "Millbrook Body Repairs", "r": ""}, {"n": "Miller & Lloyd Ltd", "r": ""}, {"n": "Mini Man Ltd T/A JB Motors", "r": "Derek Williams"}, {"n": "Mirror Image Accident Repair Centre", "r": "Phil Edwards"}, {"n": "Mirror Image Accident Repair Centre Tool Account", "r": "Phil Edwards"}, {"n": "M4 Lifting Services Ltd", "r": "Colin Thomas"}, {"n": "M&M Automotive COD", "r": "Phil Edwards"}, {"n": "MM Building Services COD", "r": ""}, {"n": "M&M Commercials Ltd", "r": "Steve North"}, {"n": "MM Engineering Solutions Limited T/A MM Engineering", "r": "Colin Thomas"}, {"n": "Mo Auto Bodyshop Ltd", "r": ""}, {"n": "Mobi Group Limited", "r": "Derek John"}, {"n": "Modex Spaces", "r": "Steve North"}, {"n": "Model Up", "r": ""}, {"n": "Mollart Engineering (Resolven) Ltd", "r": "Colin Thomas"}, {"n": "Mon Motors Ltd", "r": "Steve North"}, {"n": "Monthly Split Payment", "r": "Colin Thomas"}, {"n": "Moores Commercials ( R&S Autos Cardiff ) COD", "r": "Cardiff Branch"}, {"n": "Morgan Jones Horseboxes Ltd", "r": "Derek John"}, {"n": "Morgans Bodyshop", "r": "Steve North"}, {"n": "Morgan Marine Ltd", "r": "Colin Thomas"}, {"n": "Motec Autos (Pembs) Ltd", "r": "Derek John"}, {"n": "Motorpoint Ltd", "r": "Swansea Branch"}, {"n": "Motaquip Excel Factors Ltd COD", "r": ""}, {"n": "Motorweld Ltd", "r": "Derek Williams"}, {"n": "Mountain View Garage", "r": "Derek John"}, {"n": "M Price Motors Ltd", "r": ""}, {"n": "MPS Painting Contractors Ltd", "r": ""}, {"n": "MR Bodyshop COD", "r": ""}, {"n": "MR Fussell Ltd ( Millbrook Recovery )", "r": "Swansea Branch"}, {"n": "MR Paint COD", "r": ""}, {"n": "Multifab Metals Engineering Ltd", "r": ""}, {"n": "Mumford Low Bake Centre", "r": "Derek Williams"}, {"n": "Mustoes Specialist Vehicle Repairs Ltd", "r": "Derek Williams"}, {"n": "Nantcwmrhys Ltd T/A 3A's Leisure", "r": "Derek John"}, {"n": "Napa Auto Parts", "r": "Swansea Branch"}, {"n": "National Accident Repair Centre Ltd", "r": "Phil Edwards"}, {"n": "Nathaniel Cars Ltd", "r": "Colin Thomas"}, {"n": "Natural Environmental Engineering Ltd", "r": "Colin Thomas"}, {"n": "Neath Coachbuilders Ltd", "r": "Colin Thomas"}, {"n": "Neath Abbey Motor Body Repairs", "r": "Swansea Branch"}, {"n": "Neil & Phil Willis COD", "r": "Swansea Branch"}, {"n": "Newhouse Motors 2011 Ltd", "r": "Derek Williams"}, {"n": "Newport Accident Repair Centre", "r": "Steve North"}, {"n": "Newtown Accident Repair Services", "r": "Steve North"}, {"n": "Newton Mowers & Motors Ltd", "r": "Colin Thomas"}, {"n": "New Image Makeovers COD", "r": ""}, {"n": "New Car Shop (prev Ynyscynon Car Spray)", "r": "Phil Edwards"}, {"n": "New Adventure Travel Ltd", "r": "Colin Thomas"}, {"n": "Newport Caravans", "r": "Steve North"}, {"n": "Niss Tec Limited", "r": "Swansea Branch"}, {"n": "NJ Chips & Scuffs Ltd", "r": "Steve North"}, {"n": "NJ Restorations", "r": "Derek John"}, {"n": "Norman Thomas Cars", "r": "Swansea Branch"}, {"n": "Nottage Joinery Ltd", "r": "Colin Thomas"}, {"n": "N Owens Car Body Repairs", "r": "Phil Edwards"}, {"n": "NPTC Group of Colleges", "r": "Phil Edwards"}, {"n": "NRJ Motor Company", "r": ""}, {"n": "N Scott Autos", "r": "Derek Williams"}, {"n": "NSW Accident Repair Centre Ltd", "r": "Derek Williams"}, {"n": "OC Motor Repairs Ltd", "r": ""}, {"n": "Old Court Engineering COD", "r": ""}, {"n": "Orca Fine Finishing COD", "r": "Swansea Branch"}, {"n": "OST Bodyworx COD", "r": ""}, {"n": "Owcargold Ltd T/A Revive! Swansea", "r": "Swansea Branch"}, {"n": "Owens (Road Services) Limited", "r": "Colin Thomas"}, {"n": "Owen E Jones & Co Ltd", "r": "Swansea Branch"}, {"n": "Owens Fabrications", "r": "Colin Thomas"}, {"n": "Paddock Commercials Ltd", "r": ""}, {"n": "Pagoda- Western Motors", "r": "Steve North"}, {"n": "Paintworx", "r": "Colin Thomas"}, {"n": "Paint FX", "r": "Derek John"}, {"n": "Painttechnics Accident Repair Centre", "r": "Phil Edwards"}, {"n": "Paint My Car Ltd", "r": "Steve North"}, {"n": "Paint My Car Ltd Tool Account", "r": "Steve North"}, {"n": "Paint Services", "r": "Derek Williams"}, {"n": "Panteg Motor Body Repairs", "r": "Phil Edwards"}, {"n": "Panda Motors (Swansea) Ltd", "r": "Swansea Branch"}, {"n": "Panels @ S&J Body Repairs Pembrokeshire Ltd", "r": "Derek John"}, {"n": "Black Oak Motor Company", "r": "Swansea Branch"}, {"n": "Parker Plant Hire Ltd", "r": "Colin Thomas"}, {"n": "Parc Le Breos COD", "r": ""}, {"n": "Paul Isaac", "r": "Phil Edwards"}, {"n": "Paul SA Autos COD (Bad Debt)", "r": "Cardiff Branch"}, {"n": "Paul John Painter & Decorator COD", "r": "Derek John"}, {"n": "PBP Services (Scotland) Ltd", "r": "Swansea Branch"}, {"n": "PBS Body Repairs", "r": "Phil Edwards"}, {"n": "PDVI Ltd COD", "r": ""}, {"n": "PEM Trailers Ltd COD", "r": ""}, {"n": "Pentre Ty Gwyn Service Station", "r": "Phil Edwards"}, {"n": "PerfectLine Motor Repair Limited", "r": "Swansea Branch"}, {"n": "Perfection Painting Contractors", "r": ""}, {"n": "Peter Anderson T/A Engine Centre", "r": "Phil Edwards"}, {"n": "Phantom Works Classics", "r": ""}, {"n": "Phil James Garage", "r": "Derek John"}, {"n": "Phil Edwards Cash On Delivery COD", "r": "Phil Edwards"}, {"n": "Phil Godfrey Painting Painting & Spraying Specialists", "r": "Swansea Branch"}, {"n": "PJT Repairs", "r": "Phil Edwards"}, {"n": "Plantmax Equipment Ltd", "r": "Colin Thomas"}, {"n": "PLJ & Son Specialised Mouldings Ltd", "r": "Colin Thomas"}, {"n": "Portacover ( Machinery Movements ) Ltd", "r": ""}, {"n": "Poutneys Custom Cycles COD", "r": ""}, {"n": "Power Steering Solutions Ltd", "r": "Swansea Branch"}, {"n": "P&P Motors", "r": ""}, {"n": "PPS Powder Coatings Ltd", "r": "Colin Thomas"}, {"n": "Prestige Painting COD", "r": ""}, {"n": "Premier Automotive Solutions Ltd", "r": ""}, {"n": "Premier Bodyshop COD", "r": "Steve North"}, {"n": "Precision Paintwork & Body Repairs COD", "r": "Phil Edwards"}, {"n": "Premium Paint Finishing", "r": "Cardiff Branch"}, {"n": "Prestige Auto Refinishing Ltd", "r": "Derek Williams"}, {"n": "Prime Vehicle Repair Centre", "r": "Cardiff Branch"}, {"n": "Pristine Refinish COD", "r": "Cardiff Branch"}, {"n": "PRM Smart Repairs COD", "r": "Cardiff Branch"}, {"n": "Prospray", "r": "Phil Edwards"}, {"n": "Pro-Tect GRP Enclosures Ltd", "r": "Derek John"}, {"n": "Propa Powder Coating COD", "r": ""}, {"n": "Propaint Spray Solutions Ltd  COD", "r": "Cardiff Branch"}, {"n": "Pro Alloys Wales", "r": ""}, {"n": "P&S Travel & Coaches COD", "r": "Derek John"}, {"n": "P&T Autos", "r": "Swansea Branch"}, {"n": "Studio Punchard COD", "r": "Swansea Branch"}, {"n": "PW & EK Harris Taxi Hire Ltd", "r": ""}, {"n": "PWS (Wales) Ltd", "r": ""}, {"n": "Quartzelec Limited", "r": "Colin Thomas"}, {"n": "Quayside Body Repairs", "r": "Swansea Branch"}, {"n": "Quantas Construction Ltd COD", "r": ""}, {"n": "Qualitek Engineering Ltd", "r": "Colin Thomas"}, {"n": "Quinshield Ltd", "r": "Derek John"}, {"n": "R&A Auto Body Shop COD", "r": "Phil Edwards"}, {"n": "Racing Green Engineering Ltd", "r": ""}, {"n": "Randall Howell & Son Accident Repair Centre Ltd", "r": "Derek Williams"}, {"n": "Phoenix Accident Repair Centre", "r": "Swansea Branch"}, {"n": "Rays Auto Spray", "r": ""}, {"n": "RDH Contractors Ltd", "r": "Derek John"}, {"n": "Recycling Plant & Machinery Ltd", "r": ""}, {"n": "Recycle Direct Ltd", "r": "Colin Thomas"}, {"n": "Recycling Equipment UK Ltd T/A Wastepro", "r": ""}, {"n": "Redline Ltd", "r": "Steve North"}, {"n": "Rees Electrical Repairs", "r": "Swansea Branch"}, {"n": "Re-Kreator Ltd COD", "r": ""}, {"n": "Relay Engineering Ltd T/A Industrial Air Power", "r": "Colin Thomas"}, {"n": "Renovate Body Repairs Ltd", "r": "Derek John"}, {"n": "Renowheel Ltd COD", "r": "Swansea Branch"}, {"n": "Retroclassic Engineering Ltd", "r": "Derek Williams"}, {"n": "Revival Bodyworks Ltd", "r": "Swansea Branch"}, {"n": "Revs Motors", "r": "Derek John"}, {"n": "R&G Accident Repairs", "r": ""}, {"n": "RGM Vehicle Body Repairs", "r": "Phil Edwards"}, {"n": "RGM Haverfordwest Ltd", "r": "Phil Edwards"}, {"n": "RH Customs Limited COD", "r": ""}, {"n": "RHR Vehicle Body Repairs Ltd", "r": "Derek John"}, {"n": "Rhydian Jones COD", "r": ""}, {"n": "Ricks Bodyshop", "r": "Phil Edwards"}, {"n": "Ricky James International COD", "r": "Derek John"}, {"n": "Rinse Mobile Detailing Ltd COD", "r": "Steve North"}, {"n": "Riverdale Body Repair Centre", "r": "Derek Williams"}, {"n": "RJ Auto Body Repairs", "r": "Derek John"}, {"n": "RJays Autos", "r": "Derek John"}, {"n": "RJB Motor Engineer", "r": "Colin Thomas"}, {"n": "RJ Fukes Forestry Services", "r": ""}, {"n": "RJ Webb Commercials Ltd", "r": "Colin Thomas"}, {"n": "R&M WIlliams Ltd", "r": ""}, {"n": "RNA Ltd", "r": "Derek John"}, {"n": "RND Motor Services", "r": ""}, {"n": "RNS Autos Ltd", "r": "Steve North"}, {"n": "Roath Auto Parts", "r": "Swansea Branch"}, {"n": "Robs Vehicle Repairs", "r": "Swansea Branch"}, {"n": "Rob Seaside COD", "r": "Phil Edwards"}, {"n": "Rob Thomas", "r": ""}, {"n": "Rodell Chimneys Ltd", "r": ""}, {"n": "Roger Rees Body Repairs", "r": "Derek John"}, {"n": "Roger Roe COD Car Paint & Car Sales ( Paint Perfection)", "r": ""}, {"n": "ROI SCHEME Innovate Composites (INN001)", "r": "Derek Williams"}, {"n": "Rokhto Forged Customs & Mechanics COD", "r": "Cardiff Branch"}, {"n": "Ron Skinner & Sons Ltd", "r": "Steve North"}, {"n": "Ross Car Sales Ltd", "r": "Colin Thomas"}, {"n": "Ross Gordon Engineering Ltd", "r": "Derek Williams"}, {"n": "Rovac Holdings  Ltd", "r": "Phil Edwards"}, {"n": "Royston (Davies) Motors", "r": "Phil Edwards"}, {"n": "RPM Body Shop Ltd", "r": "Derek Williams"}, {"n": "RS Body Repair Centre", "r": "Phil Edwards"}, {"n": "Rushacre Garage Ltd", "r": "Derek John"}, {"n": "Rusty Restos", "r": "Steve North"}, {"n": "Russells Auto Body Centre Ltd T/A Russells Refinishing", "r": "Derek Williams"}, {"n": "RVT Bodyworks COD", "r": "Steve North"}, {"n": "RW Christopher Crane Hire Ltd", "r": ""}, {"n": "Ryan Jones Plant Hire Ltd", "r": "Steve North"}, {"n": "SA1 Custom Spraying COD", "r": "Swansea Branch"}, {"n": "SA Car Repair Centre", "r": "Steve North"}, {"n": "Saddler Street Smart Repairs COD", "r": "Swansea Branch"}, {"n": "Actionfold Limited T/A City Moves", "r": "Swansea Branch"}, {"n": "Safe Gas Cylinders Limited", "r": "Colin Thomas"}, {"n": "Sanders Body Repairs", "r": "Phil Edwards"}, {"n": "Scarr Resprays", "r": "Swansea Branch"}, {"n": "Scott Developments COD", "r": "Cardiff Branch"}, {"n": "Scratch 2 Smash", "r": "Steve North"}, {"n": "Scuffed Up Ltd", "r": "Phil Edwards"}, {"n": "Scuff Solutions Ltd", "r": "Steve North"}, {"n": "Scuffed COD", "r": ""}, {"n": "SC Wilshaw Motor Engineers", "r": "Derek John"}, {"n": "SDF Surboards COD", "r": "Swansea Branch"}, {"n": "SDN Repairs ( Love Your Car )", "r": "Steve North"}, {"n": "Sean Whitton Spray Finishing Services COD", "r": "Derek John"}, {"n": "Select Accident Repair Centre ( Fix Auto Neath )", "r": "Phil Edwards"}, {"n": "Select Local Bus", "r": "Swansea Branch"}, {"n": "Sev Smart Repair", "r": "Phil Edwards"}, {"n": "Severn Trading Limited", "r": "Colin Thomas"}, {"n": "SGM Plant Hire Ltd T/A Pukka Powder Coatings", "r": ""}, {"n": "Shirehill Coachworks", "r": "Derek John"}, {"n": "Shirenewton Sailplanes", "r": ""}, {"n": "Siddell Environmental Services Ltd", "r": "Swansea Branch"}, {"n": "Signum Motors COD", "r": ""}, {"n": "Simon Davies Spraying Services", "r": "Derek Williams"}, {"n": "Sinclair Bodyshop (Prep Gorseinon)", "r": "Phil Edwards"}, {"n": "Sinclair Bodyshop (Main Centre)", "r": "Colin Thomas"}, {"n": "Sinclair Accident Repair Centre Bridgend", "r": "Colin Thomas"}, {"n": "Sinclair Volkswagen Newport", "r": "Steve North"}, {"n": "Sinclair Land Rover Swansea", "r": ""}, {"n": "Sinclair Garages T/A BYD Swansea", "r": "Phil Edwards"}, {"n": "Sinclair Garages Ltd (Audi Swansea)", "r": ""}, {"n": "Sinclair Garages (Swansea) Ltd T/A Sinclair Jaguar Land Rover Cardiff", "r": "Phil Edwards"}, {"n": "Sinclair Finance & Leasing", "r": "Swansea Branch"}, {"n": "Sixty Sixty Coaches Ltd", "r": "Colin Thomas"}, {"n": "S&J Body Repairs Pembrokeshire Ltd", "r": "Derek John"}, {"n": "S&J Car Care Accident Repair Centre COD", "r": "Steve North"}, {"n": "SJ Curtis", "r": "Derek Williams"}, {"n": "SJ Grigg", "r": "Derek Williams"}, {"n": "Skewen Accident Repair Centre", "r": "Phil Edwards"}, {"n": "Smart Bodyshop Solutions ( Cardiff ) Ltd", "r": "Steve North"}, {"n": "Smart Bodyshop Solutions ( Kidderminster ) Ltd", "r": "Steve North"}, {"n": "Smart Bodyshop Solutions ( Exeter ) Ltd", "r": ""}, {"n": "Smart Bodyshop Solutions ( Cornwall ) Ltd", "r": ""}, {"n": "Smartscuffs Services Limited COD", "r": ""}, {"n": "Smart & Savvy COD", "r": ""}, {"n": "Smart Bodyshop Solutions ( Hereford ) Ltd", "r": "Derek Williams"}, {"n": "Smart Bodyshop Solutions ( Swansea ) Ltd", "r": "Phil Edwards"}, {"n": "Smart Bodyshop Solutions (Reading) Ltd", "r": "Steve North"}, {"n": "Solid Surface Repair Ltd COD", "r": "Swansea Branch"}, {"n": "SOS Consumables Ltd", "r": "Swansea Branch"}, {"n": "South Wales Fork Trucks Ltd", "r": "Colin Thomas"}, {"n": "South Wales Arborists (SWA)", "r": "Swansea Branch"}, {"n": "South Wales BMW COD", "r": ""}, {"n": "South Wales Hips Ltd COD", "r": ""}, {"n": "South Wales Truck & Trailer Ltd", "r": "Colin Thomas"}, {"n": "Spartan Equipment Sales & Rentals", "r": "Colin Thomas"}, {"n": "Spartan Scaffolding Solutions Ltd", "r": "Swansea Branch"}, {"n": "SPB Motor Centre", "r": "Swansea Branch"}, {"n": "Specialist Cars Of Swansea", "r": "Swansea Branch"}, {"n": "Speedy", "r": "Swansea Branch"}, {"n": "Spectrum Supply Lts T/A Umbra Shading", "r": ""}, {"n": "Spencer Quantum Ltd", "r": "Derek John"}, {"n": "Specialists Accident Repair Ltd", "r": "Derek Williams"}, {"n": "Sporting Classics Marques", "r": "Derek John"}, {"n": "Spraytech Ltd", "r": "Colin Thomas"}, {"n": "Sprayworkz WEEKLY", "r": "Derek John"}, {"n": "Spraytech Autobody Repairs (Rhondda)", "r": "Steve North"}, {"n": "Spray Station Bodyshop", "r": "Phil Edwards"}, {"n": "Spraybay COD", "r": ""}, {"n": "Spraymech COD", "r": ""}, {"n": "Spraycorp", "r": "Swansea Branch"}, {"n": "Spray Pro Wales", "r": ""}, {"n": "Spraycoat Solutions Wales Ltd COD", "r": "Cardiff Branch"}, {"n": "SS Autos COD", "r": ""}, {"n": "Station Sprayers", "r": "Phil Edwards"}, {"n": "Start To Finish", "r": "Steve North"}, {"n": "STAFF ACCOUNT", "r": "Swansea Branch"}, {"n": "Standard Signs & Traffic Systems Ltd", "r": "Colin Thomas"}, {"n": "1st Choice Transport Ltd", "r": "Swansea Branch"}, {"n": "1st Choice Accident Repair Centre Ltd", "r": "Steve North"}, {"n": "1st Class Fibreglass", "r": "Derek John"}, {"n": "Stepaside Coachworks", "r": "Derek John"}, {"n": "Sterling Jenkins COD", "r": "Swansea Branch"}, {"n": "Steve Dunn Accident Repair Centre", "r": "Phil Edwards"}, {"n": "Stephen Emmett COD", "r": "Swansea Branch"}, {"n": "Steve Bush COD", "r": "Swansea Branch"}, {"n": "Stephanie Anthony Painter & Decorator COD", "r": ""}, {"n": "Steve Gorvett COD", "r": "Colin Thomas"}, {"n": "Stepside Agricultural Contractors", "r": "Derek John"}, {"n": "Steve North Cash On Delivery", "r": "Steve North"}, {"n": "Sterling UK Construction Ltd", "r": "Colin Thomas"}, {"n": "Steve Hurdman Auto Refinishing Specialist COD", "r": "Colin Thomas"}, {"n": "Steve Hoskin Construction Ltd", "r": "Derek Williams"}, {"n": "Streetmaster (South Wales) Ltd", "r": "Colin Thomas"}, {"n": "Summit Customs COD", "r": ""}, {"n": "Sureseal Windows Limited", "r": "Swansea Branch"}, {"n": "Suspense Account", "r": ""}, {"n": "Swansea Commercial Body Builders", "r": "Swansea Branch"}, {"n": "Swalek Ltd", "r": "Colin Thomas"}, {"n": "Swansea Motor Vehicle Auction Ltd ( SMVA )", "r": ""}, {"n": "Swansea Branch Cash On Delivery", "r": ""}, {"n": "SW Horseboxes / Chris Williams", "r": ""}, {"n": "Systems Pipework Limited", "r": "Swansea Branch"}, {"n": "Sytner Swansea BMW", "r": ""}, {"n": "Sytner Limited T/A Sytner Haverfordwest", "r": ""}, {"n": "Tanner Body Repairs Ltd", "r": "Phil Edwards"}, {"n": "Tanglwst Fabrications COD", "r": "Derek John"}, {"n": "Tazrock Services Ltd", "r": "Colin Thomas"}, {"n": "TBD ( Owen Holland ) Limited", "r": "Colin Thomas"}, {"n": "TCJ Osborne Ltd", "r": "Derek Williams"}, {"n": "TDC Commercial Bodyshops", "r": "Steve North"}, {"n": "Team Tristar", "r": "Derek John"}, {"n": "Teddington Engineered Solutions Ltd", "r": "Colin Thomas"}, {"n": "Tegfan Garage", "r": "Swansea Branch"}, {"n": "Terence Briggs Painters", "r": "Steve North"}, {"n": "The Trade Centre Wales Ltd", "r": "Colin Thomas"}, {"n": "NS Smart Repair", "r": ""}, {"n": "The Total Service Centre", "r": "Swansea Branch"}, {"n": "The Safety Letterbox Company Ltd", "r": "Swansea Branch"}, {"n": "The Wheel Centre (South Wales) Ltd", "r": "Colin Thomas"}, {"n": "The Aluminium Lighting Co Ltd", "r": "Colin Thomas"}, {"n": "Them Paint Guys Limited", "r": "Phil Edwards"}, {"n": "The Surge Pub Limited", "r": ""}, {"n": "The Restoration Hub COD", "r": ""}, {"n": "The Box Furniture COD", "r": "Swansea Branch"}, {"n": "The New Sandon Garage", "r": "Cardiff Branch"}, {"n": "The Wheel Specialist Swansea", "r": ""}, {"n": "The Bodyshop Accident Repair Centre", "r": "Steve North"}, {"n": "The Garage", "r": "Colin Thomas"}, {"n": "Vortex Spray Company", "r": "Colin Thomas"}, {"n": "The Dent Gurus Ltd (COD)", "r": "Cardiff Branch"}, {"n": "The Steel Shop", "r": "Colin Thomas"}, {"n": "The Aerosol Expert Sales", "r": ""}, {"n": "The Spray Co COD", "r": "Swansea Branch"}, {"n": "The Autoshop Accident Repair Centre Ltd", "r": "Derek Williams"}, {"n": "The Redland Bodyworks Ltd", "r": "Derek Williams"}, {"n": "Thomas Car Sales COD", "r": "Swansea Branch"}, {"n": "Tier 1", "r": ""}, {"n": "Tier 2", "r": ""}, {"n": "Tier 3", "r": ""}, {"n": "Time Vendor Finance Limited", "r": ""}, {"n": "Tirydail Motor Repairs Ltd T/A Ammanford Motorbody Repairs", "r": "Derek John"}, {"n": "Fleet Vans Direct COD", "r": ""}, {"n": "TJ Trade", "r": "Derek John"}, {"n": "TK Beynon Ltd", "r": ""}, {"n": "TM Cars", "r": ""}, {"n": "T&M Group Ltd", "r": "Swansea Branch"}, {"n": "Tony M Rees Bulk Haulage Ltd", "r": "Swansea Branch"}, {"n": "Totally Welsh", "r": "Derek John"}, {"n": "Total Construction Llandeilo Ltd", "r": ""}, {"n": "Total Spray Solutions", "r": "Cardiff Branch"}, {"n": "Tower Hill Garage", "r": "Derek John"}, {"n": "TPS Gates & Doors Ltd", "r": "Steve North"}, {"n": "Trade Cars Direct (Swansea) Ltd", "r": "Phil Edwards"}, {"n": "TRT Welding", "r": "Colin Thomas"}, {"n": "Truck & Bus Cymru Ltd", "r": "Colin Thomas"}, {"n": "Trustford Bristol Van 1", "r": ""}, {"n": "Trustford Bristol Van 2", "r": ""}, {"n": "TSM Maintenance", "r": "Phil Edwards"}, {"n": "TST Cardiff Ltd T/A IRG Swansea", "r": "Swansea Branch"}, {"n": "TWK Thomas & Son Ltd", "r": "Phil Edwards"}, {"n": "Tycroes Group Ltd", "r": "Swansea Branch"}, {"n": "UHP Systems Ltd", "r": "Swansea Branch"}, {"n": "UHS Group", "r": "Swansea Branch"}, {"n": "UK Car Sales", "r": "Swansea Branch"}, {"n": "UK Electric Ltd T/A BEI Lighting", "r": "Colin Thomas"}, {"n": "Ultimate Accident Repair Services ( Fix Auto Gloucester )", "r": ""}, {"n": "Unilift South Wales Ltd", "r": "Colin Thomas"}, {"n": "Up To Scratch ( Cheltenham )", "r": ""}, {"n": "UPVC Colour Change COD", "r": ""}, {"n": "UPVC Respray UK", "r": "Cardiff Branch"}, {"n": "UTS Bodyshops Ltd", "r": "Steve North"}, {"n": "Valet Aspects COD", "r": ""}, {"n": "Valleys Autopaints", "r": "Steve North"}, {"n": "Vale Mouldings", "r": "Colin Thomas"}, {"n": "Valley Enterprises Ltd", "r": "Colin Thomas"}, {"n": "Vantastec Ltd", "r": "Steve North"}, {"n": "Vehicle Cosmetics BVS Wales Ltd", "r": ""}, {"n": "Vehicle Solutions ( Cheltenham ) Ltd", "r": ""}, {"n": "Vernon Pain T/A Chipsaway", "r": ""}, {"n": "Victorian House (Sales) Ltd", "r": "Colin Thomas"}, {"n": "Villa Motors Transport Haulage", "r": ""}, {"n": "V&S Autos Limited", "r": "Steve North"}, {"n": "Wagman Windows Ltd", "r": ""}, {"n": "Walters Plant Hire Ltd", "r": "Colin Thomas"}, {"n": "Wales Motorsport Fabrication", "r": "Derek John"}, {"n": "Walls Autospray", "r": ""}, {"n": "Walnut Tree Farm", "r": "Steve North"}, {"n": "Walnut Tree Garage Ltd T/A JP Tod Commercials", "r": ""}, {"n": "Watkins Welding & Tyres COD", "r": "Swansea Branch"}, {"n": "Watts Truck & Van Ltd", "r": "Swansea Branch"}, {"n": "Watkins Coaches Ltd", "r": "Swansea Branch"}, {"n": "Wayside Garage", "r": "Swansea Branch"}, {"n": "Wayne Dillon", "r": "Phil Edwards"}, {"n": "WD Sprayrite Ltd", "r": "Derek John"}, {"n": "Website Sales", "r": ""}, {"n": "Weekly Split Payment", "r": "Colin Thomas"}, {"n": "Welsh Coast Campers", "r": "Phil Edwards"}, {"n": "Wern Road Motors", "r": "Derek John"}, {"n": "Weston Paintworx", "r": "Derek John"}, {"n": "West End Service Station", "r": "Swansea Branch"}, {"n": "Western Motors", "r": "Steve North"}, {"n": "Western Carbons Ltd", "r": ""}, {"n": "West Wales Defender COD", "r": "Derek John"}, {"n": "Westfa Garage Ltd", "r": "Swansea Branch"}, {"n": "Wheelz Centre Wales Ltd", "r": "Phil Edwards"}, {"n": "Whiteland Restorations Ltd", "r": "Derek John"}, {"n": "Whitford Motor Bodies Ltd", "r": "Derek Williams"}, {"n": "Widemarsh Bodyworks Ltd", "r": ""}, {"n": "Wilson Body Repairs Ltd", "r": "Phil Edwards"}, {"n": "Wilkins Coaches", "r": "Swansea Branch"}, {"n": "Vehicle Recapture Ltd", "r": "Steve North"}, {"n": "Williams Motors COD", "r": ""}, {"n": "Wildmill ARC Ltd", "r": "Phil Edwards"}, {"n": "Withybush Coachworks Ltd", "r": "Derek John"}, {"n": "Woods Yield Ltd", "r": ""}, {"n": "Woodford", "r": "Steve North"}, {"n": "Woodlands Accident Repair Centre Ltd", "r": "Steve North"}, {"n": "Wray Marine", "r": ""}, {"n": "Wreck-o-mended COD", "r": "Steve North"}, {"n": "WW Biomass Services Ltd", "r": ""}, {"n": "Wyedean Paints & Panels Ltd", "r": "Steve North"}, {"n": "Wye Valley VW Classics Ltd", "r": "Derek Williams"}, {"n": "Wyn's Autos", "r": "Swansea Branch"}, {"n": "Wyns Tyre & Exhaust Centre", "r": "Derek John"}, {"n": "Yellowstar Trading Ltd", "r": "Swansea Branch"}, {"n": "Ysgol Gymraeg Melin Gruffydd", "r": ""}, {"n": "Z&C Caravan Repairs T/A Caravan Hospital", "r": "Phil Edwards"}];
+
+// ===================== CONSTANTS =====================
+const REPS = ['Derek John','Derek Williams','Phil Edwards','Steve North','Colin Thomas','Joe Thomas','Swansea Branch','Cardiff Branch'];
+const BRANCHES = ['Swansea Branch','Cardiff Branch'];
+const VTYPES = ['In-person','Phone call','WhatsApp'];
+
+let CFG = {url:'',key:'',topic:''};
+let currentRep = null;
+let myCustomers = [];
+let logScore = 0;
+let logType = 'In-person';
+let selectedCustomer = '';
+
+// ===================== DB =====================
+async function dbGet(table, params=''){
+  const r = await fetch(`${CFG.url}/rest/v1/${table}?${params}`,{
+    headers:{'apikey':CFG.key,'Authorization':'Bearer '+CFG.key}
+  });
+  if(!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function dbPost(table, body){
+  const r = await fetch(`${CFG.url}/rest/v1/${table}`,{
+    method:'POST',
+    headers:{'apikey':CFG.key,'Authorization':'Bearer '+CFG.key,'Content-Type':'application/json','Prefer':'return=minimal'},
+    body:JSON.stringify(body)
+  });
+  if(!r.ok) throw new Error(await r.text());
+}
+async function dbDelete(table, id){
+  const r = await fetch(`${CFG.url}/rest/v1/${table}?id=eq.${id}`,{
+    method:'DELETE',
+    headers:{'apikey':CFG.key,'Authorization':'Bearer '+CFG.key}
+  });
+  if(!r.ok) throw new Error(await r.text());
+}
+
+// ===================== KEEPALIVE =====================
+function keepalive(){
+  if(!CFG.url||!CFG.key) return;
+  fetch(`${CFG.url}/rest/v1/customers?select=id&limit=1`,{
+    headers:{'apikey':CFG.key,'Authorization':'Bearer '+CFG.key}
+  }).catch(()=>{});
+}
+
+// ===================== PUSH NOTIFICATION =====================
+async function notify(rep, customer, type){
+  if(!CFG.topic) return;
+  try{
+    await fetch(`https://ntfy.sh/${CFG.topic}`,{
+      method:'POST',
+      headers:{'Title':'IPS Visit Logged','Priority':'default','Tags':'clipboard'},
+      body:`${rep} visited ${customer} · ${type}`
+    });
+  } catch(e){}
+}
+
+// ===================== SETUP =====================
+function genTopic(){
+  const chars='abcdefghijklmnopqrstuvwxyz0123456789';
+  const rand=Array.from({length:8},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
+  document.getElementById('cfg-topic').value='ips-tracker-'+rand;
+}
+function copySql(){
+  const txt=document.getElementById('sql-block').innerText.replace('Copy','').trim();
+  navigator.clipboard.writeText(txt).catch(()=>{});
+  const b=document.querySelector('.copy-btn');b.textContent='Copied!';
+  setTimeout(()=>b.textContent='Copy',2000);
+}
+async function saveSetup(){
+  const url=document.getElementById('cfg-url').value.trim().replace(/\/$/,'');
+  const key=document.getElementById('cfg-key').value.trim();
+  const topic=document.getElementById('cfg-topic').value.trim();
+  const btn=document.getElementById('setup-btn');
+  const msg=document.getElementById('setup-msg');
+  if(!url||!key){showMsg(msg,'Please enter both URL and key.','err');return}
+  btn.disabled=true;btn.textContent='Testing connection...';
+  try{
+    const r=await fetch(`${url}/rest/v1/customers?limit=1`,{headers:{'apikey':key,'Authorization':'Bearer '+key}});
+    if(!r.ok) throw new Error(await r.text());
+    CFG={url,key,topic};
+    localStorage.setItem('ips-cfg',JSON.stringify(CFG));
+    showMsg(msg,'Connected! Loading...','ok');
+    setTimeout(initApp,700);
+  } catch(e){
+    showMsg(msg,'Connection failed — check your URL and key. '+e.message,'err');
+    btn.disabled=false;btn.textContent='Test & Save Connection';
+  }
+}
+
+// ===================== SEED =====================
+async function seedCustomers(){
+  const btn=document.getElementById('seed-btn');
+  const bar=document.getElementById('seed-bar');
+  const msg=document.getElementById('seed-msg');
+  btn.disabled=true;btn.textContent='Importing...';
+  const BATCH=100, total=SEED.length;
+  let done=0;
+  try{
+    for(let i=0;i<SEED.length;i+=BATCH){
+      await dbPost('customers',SEED.slice(i,i+BATCH).map(c=>({name:c.n,rep:c.r})));
+      done+=Math.min(BATCH,SEED.length-i);
+      bar.style.width=Math.round(done/total*100)+'%';
+    }
+    showMsg(msg,`✓ ${total} customers imported!`,'ok');
+    setTimeout(showLogin,1000);
+  } catch(e){
+    showMsg(msg,'Import failed: '+e.message,'err');
+    btn.disabled=false;btn.textContent='Retry';
+  }
+}
+
+// ===================== INIT =====================
+async function initApp(){
+  try{const s=localStorage.getItem('ips-cfg');if(s)CFG=JSON.parse(s)}catch(e){}
+  if(!CFG.url||!CFG.key){showScreen('s-setup');return}
+  keepalive();
+  try{
+    const c=await dbGet('customers','select=id&limit=1');
+    if(!c.length){showScreen('s-seed');return}
+    showLogin();
+  } catch(e){showScreen('s-setup')}
+}
+
+// ===================== LOGIN =====================
+async function showLogin(){
+  showScreen('s-login');
+  try{
+    const custs=await dbGet('customers','select=rep');
+    const counts={};
+    REPS.forEach(r=>counts[r]=0);
+    custs.forEach(c=>{if(c.rep&&REPS.includes(c.rep))counts[c.rep]++;});
+    counts['Joe Thomas']=custs.length;
+    const grid=document.getElementById('rep-grid');
+    grid.innerHTML='';
+    REPS.forEach(rep=>{
+      const btn=document.createElement('button');
+      btn.className='rep-btn'+(BRANCHES.includes(rep)?' branch':'');
+      const n=counts[rep]||0;
+      btn.innerHTML=`${rep}<span>${n} account${n!==1?'s':''}</span>`;
+      btn.onclick=()=>loginAs(rep);
+      grid.appendChild(btn);
+    });
+  } catch(e){console.warn('Login counts failed',e)}
+}
+
+async function loginAs(rep){
+  currentRep=rep;
+  localStorage.setItem('ips-rep',rep);
+  document.getElementById('tb-rep').textContent=rep;
+  showScreen('s-app');
+  buildTabs();
+  try{
+    let custs;
+    if(rep==='Joe Thomas') custs=await dbGet('customers','select=name&order=name.asc');
+    else custs=await dbGet('customers',`select=name&rep=eq.${encodeURIComponent(rep)}&order=name.asc`);
+    myCustomers=custs.map(c=>c.name);
+  } catch(e){myCustomers=[]}
+  showTab(rep==='Joe Thomas'?'dashboard':'log');
+}
+
+function switchRep(){currentRep=null;showLogin()}
+
+// ===================== TABS =====================
+function buildTabs(){
+  const isJoe=currentRep==='Joe Thomas';
+  const list=isJoe
+    ?[['dashboard','Dashboard'],['heatmap','Heat Map'],['log','Log Visit'],['history','All History'],['admin','Admin']]
+    :[['log','Log Visit'],['history','My Visits']];
+  document.getElementById('tabs').innerHTML=list.map(([id,lbl])=>
+    `<button class="tab" id="tab-${id}" onclick="showTab('${id}')">${lbl}</button>`
+  ).join('');
+}
+function showTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  const el=document.getElementById('tab-'+tab);if(el)el.classList.add('active');
+  const c=document.getElementById('content');
+  ({log:renderLog,history:renderHistory,dashboard:renderDashboard,heatmap:renderHeatmap,admin:renderAdmin})[tab]?.(c);
+}
+
+// ===================== LOG VISIT =====================
+function renderLog(c){
+  logScore=0;logType='In-person';selectedCustomer='';
+  const today=new Date().toISOString().split('T')[0];
+  c.innerHTML=`
+  <div id="success-banner" class="success-banner">✓ Visit logged — notification sent.</div>
+  <div class="card">
+    <div class="card-ttl">Log a Visit</div>
+    <div class="field">
+      <label>Date <span class="req">*</span></label>
+      <input type="date" id="f-date" value="${today}">
+    </div>
+    <div class="field">
+      <label>Customer <span class="req">*</span></label>
+      <div class="cust-wrap">
+        <input type="text" class="cust-input" id="cust-inp" placeholder="Type to search your accounts..." autocomplete="off" oninput="filterC()" onfocus="openDD()" onblur="setTimeout(closeDD,200)">
+        <div class="cust-dd" id="cust-dd"></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Visit Type</label>
+      <div class="chips" id="type-chips">
+        ${VTYPES.map((t,i)=>`<div class="chip${i===0?' sel':''}" onclick="pickType(this,'${t}')">${t}</div>`).join('')}
+      </div>
+    </div>
+    <div class="field">
+      <label>Issues Raised</label>
+      <input type="text" id="f-issues" placeholder="Any complaints or problems flagged...">
+    </div>
+    <div class="field">
+      <label>Visit Notes</label>
+      <textarea id="f-notes" style="width:100%;min-height:80px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;color:var(--text);resize:vertical;font-family:inherit" placeholder="Brief summary of the visit..."></textarea>
+    </div>
+    <div class="field">
+      <label>Next Planned Visit</label>
+      <input type="date" id="f-next">
+    </div>
+    <div class="field">
+      <label>Relationship Score</label>
+      <div class="stars" id="star-row">
+        ${[1,2,3,4,5].map(i=>`<span class="star" onclick="setStar(${i})">★</span>`).join('')}
+      </div>
+      <div class="field-hint">1 = needs attention &nbsp;·&nbsp; 5 = excellent</div>
+    </div>
+    <button class="submit-btn" id="sub-btn" onclick="submitLog()">Save Visit Log</button>
+  </div>`;
+}
+function filterC(){
+  const q=document.getElementById('cust-inp').value.toLowerCase();
+  const dd=document.getElementById('cust-dd');
+  if(!q){dd.style.display='none';return}
+  const m=myCustomers.filter(c=>c.toLowerCase().includes(q)).slice(0,60);
+  if(!m.length){dd.style.display='none';return}
+  dd.innerHTML=m.map(c=>`<div class="cust-opt" onmousedown="pickC('${c.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">  ${c}</div>`).join('');
+  dd.style.display='block';
+}
+function openDD(){if(document.getElementById('cust-inp').value)filterC()}
+function closeDD(){const d=document.getElementById('cust-dd');if(d)d.style.display='none'}
+function pickC(n){selectedCustomer=n;document.getElementById('cust-inp').value=n;closeDD()}
+function pickType(el,t){logType=t;document.querySelectorAll('#type-chips .chip').forEach(c=>c.classList.remove('sel'));el.classList.add('sel')}
+function setStar(n){logScore=n;document.querySelectorAll('#star-row .star').forEach((s,i)=>s.classList.toggle('on',i<n))}
+
+async function submitLog(){
+  const date=document.getElementById('f-date').value;
+  const cust=selectedCustomer||document.getElementById('cust-inp').value.trim();
+  if(!cust){alert('Please select a customer.');return}
+  if(!date){alert('Please set a date.');return}
+  const btn=document.getElementById('sub-btn');
+  btn.disabled=true;btn.textContent='Saving...';
+  try{
+    const nxt=document.getElementById('f-next').value||null;
+    await dbPost('visits',{
+      rep:currentRep,customer:cust,visit_date:date,visit_type:logType,
+      has_order:false,
+      issues:document.getElementById('f-issues').value.trim(),
+      notes:document.getElementById('f-notes').value.trim(),
+      next_visit:nxt,
+      score:logScore||null
+    });
+    await notify(currentRep,cust,logType);
+    const banner=document.getElementById('success-banner');
+    if(!CFG.topic) banner.textContent='✓ Visit logged successfully!';
+    banner.style.display='block';
+    banner.scrollIntoView({behavior:'smooth'});
+    setTimeout(()=>banner.style.display='none',3500);
+    // Reset
+    document.getElementById('cust-inp').value='';
+    document.getElementById('f-issues').value='';
+    document.getElementById('f-notes').value='';
+    document.getElementById('f-next').value='';
+    document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
+    logScore=0;selectedCustomer='';logType='In-person';
+    document.querySelectorAll('#star-row .star').forEach(s=>s.classList.remove('on'));
+    document.querySelectorAll('#type-chips .chip').forEach((c,i)=>c.classList.toggle('sel',i===0));
+  } catch(e){alert('Error saving: '+e.message)}
+  btn.disabled=false;btn.textContent='Save Visit Log';
+}
+
+// ===================== HISTORY =====================
+async function renderHistory(c){
+  c.innerHTML=`<div class="loading"><div class="spinner"></div><br>Loading...</div>`;
+  try{
+    const isJoe=currentRep==='Joe Thomas';
+    const p=isJoe?'select=*&order=created_at.desc&limit=300':`select=*&rep=eq.${encodeURIComponent(currentRep)}&order=created_at.desc&limit=300`;
+    const vs=await dbGet('visits',p);
+    if(!vs.length){c.innerHTML=`<div class="empty"><div class="empty-ico">📋</div><p>No visits logged yet.</p></div>`;return}
+    c.innerHTML=vs.map(v=>`
+      <div class="hist-item">
+        <div class="hist-top">
+          <div class="hist-cust">${v.customer}</div>
+          <div class="hist-date">${fmtDate(v.visit_date)}</div>
+        </div>
+        <div class="hist-tags">
+          <div class="htag">${v.visit_type}</div>
+          ${isJoe?`<div class="htag">${v.rep}</div>`:''}
+          ${v.score?`<div class="htag">${'★'.repeat(v.score)}</div>`:''}
+        </div>
+        ${v.issues?`<div class="hist-issue">⚠ ${v.issues}</div>`:''}
+        ${v.notes?`<div class="hist-notes">${v.notes}</div>`:''}
+        ${v.next_visit?`<div class="hist-next">Next: ${fmtDate(v.next_visit)}</div>`:''}
+      </div>`).join('');
+  } catch(e){c.innerHTML=`<div class="empty"><p>Error: ${e.message}</p></div>`}
+}
+
+// ===================== DASHBOARD =====================
+async function renderDashboard(c){
+  c.innerHTML=`<div class="loading"><div class="spinner"></div><br>Loading dashboard...</div>`;
+  try{
+    const vs=await dbGet('visits','select=*&order=visit_date.desc&limit=5000');
+    if(!vs.length){c.innerHTML=`<div class="empty"><div class="empty-ico">📊</div><p>No visits logged yet.</p></div>`;return}
+    const today=new Date().toISOString().split('T')[0];
+    const monthStart=new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().split('T')[0];
+    const cmap={};
+    vs.forEach(v=>{
+      if(!cmap[v.customer])cmap[v.customer]={rep:v.rep,visits:[]};
+      cmap[v.customer].visits.push(v);
+    });
+    const rows=Object.entries(cmap).map(([cust,obj])=>{
+      const sorted=[...obj.visits].sort((a,b)=>a.visit_date>b.visit_date?1:-1);
+      const last=sorted[sorted.length-1];
+      const d=daysSince(last.visit_date);
+      const scores=obj.visits.filter(v=>v.score);
+      const avg=scores.length?scores.reduce((a,v)=>a+v.score,0)/scores.length:null;
+      const issues=obj.visits.filter(v=>v.issues).length;
+      const nxt=obj.visits.map(v=>v.next_visit).filter(Boolean).sort().pop();
+      return{cust,rep:last.rep,d,st:getStatus(d),vn:obj.visits.length,avg,issues,nxt,lastDate:last.visit_date};
+    });
+    const thisMonthV=vs.filter(v=>v.visit_date>=monthStart).length;
+    const atRisk=rows.filter(r=>r.st!=='Active').length;
+    const allSc=vs.filter(v=>v.score);
+    const avgSc=allSc.length?(allSc.reduce((a,v)=>a+v.score,0)/allSc.length).toFixed(1):'—';
+    const repList=[...new Set(vs.map(v=>v.rep))].sort();
+    window._dRows=rows;window._dToday=today;
+    const today2=new Date();
+    const defFrom=new Date(today2.getTime()-90*86400000).toISOString().split('T')[0];
+    c.innerHTML=`
+    <div class="metrics">
+      <div class="metric"><div class="metric-val">${rows.length}</div><div class="metric-lbl">Customers visited</div></div>
+      <div class="metric"><div class="metric-val">${thisMonthV}</div><div class="metric-lbl">Visits this month</div></div>
+      <div class="metric warn"><div class="metric-val">${atRisk}</div><div class="metric-lbl">At risk / lapsed</div></div>
+      <div class="metric"><div class="metric-val">${avgSc}</div><div class="metric-lbl">Avg rel. score</div></div>
+    </div>
+    <div class="toolbar">
+      <input type="text" id="d-srch" placeholder="Search..." oninput="filterDash()">
+      <select id="d-rep" onchange="filterDash()">
+        <option value="">All reps</option>
+        ${repList.map(r=>`<option value="${r}">${r}</option>`).join('')}
+      </select>
+      <select id="d-sts" onchange="filterDash()">
+        <option value="">All statuses</option>
+        <option>Active</option><option>At Risk</option><option>Lapsed</option>
+      </select>
+      <button class="export-btn" onclick="showExport()">⬇ Export CSV</button>
+    </div>
+    <div id="export-panel" style="display:none" class="card" style="margin-bottom:10px">
+      <div class="card-ttl">Export visit logs</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <div><label style="font-size:11px;color:var(--muted);font-weight:700;display:block;margin-bottom:3px">FROM</label><input type="date" id="exp-from" value="${defFrom}" style="padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:13px"></div>
+        <div><label style="font-size:11px;color:var(--muted);font-weight:700;display:block;margin-bottom:3px">TO</label><input type="date" id="exp-to" value="${today}" style="padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:13px"></div>
+        <div style="padding-top:18px"><button class="primary-btn" style="width:auto;padding:8px 16px;font-size:13px" onclick="doExport()">Download CSV</button></div>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+    <div class="tbl-wrap">
+    <table><thead><tr>
+      <th>Customer</th><th>Rep</th><th>Status</th><th>Visits</th>
+      <th>Last Visit</th><th>Days Since</th><th>Score</th><th>Issues</th><th>Next Visit</th>
+    </tr></thead>
+    <tbody id="dash-tbody"></tbody></table>
+    </div></div>`;
+    filterDash();
+  } catch(e){c.innerHTML=`<div class="empty"><p>Error: ${e.message}</p></div>`}
+}
+function filterDash(){
+  const srch=(document.getElementById('d-srch')||{}).value||'';
+  const fR=(document.getElementById('d-rep')||{}).value||'';
+  const fS=(document.getElementById('d-sts')||{}).value||'';
+  let rows=window._dRows||[];
+  if(srch)rows=rows.filter(r=>r.cust.toLowerCase().includes(srch.toLowerCase())||r.rep.toLowerCase().includes(srch.toLowerCase()));
+  if(fR)rows=rows.filter(r=>r.rep===fR);
+  if(fS)rows=rows.filter(r=>r.st===fS);
+  rows=[...rows].sort((a,b)=>a.d-b.d);
+  const td=window._dToday||'';
+  const tb=document.getElementById('dash-tbody');if(!tb)return;
+  tb.innerHTML=rows.map(r=>{
+    const dots=r.avg?Array.from({length:5},(_,i)=>`<div class="dot ${i<Math.round(r.avg)?'dot-on':'dot-off'}"></div>`).join(''):'—';
+    const ov=r.nxt&&r.nxt<td;
+    return`<tr>
+      <td style="font-weight:600;white-space:nowrap">${r.cust}</td>
+      <td style="font-size:11px;white-space:nowrap">${r.rep}</td>
+      <td><span class="badge b-${r.st==='Active'?'act':r.st==='At Risk'?'risk':'lap'}">${r.st}</span></td>
+      <td>${r.vn}</td>
+      <td style="white-space:nowrap">${fmtDate(r.lastDate)}</td>
+      <td style="color:${r.d>14?'var(--r)':'inherit'};font-weight:${r.d>14?700:400}">${r.d}d</td>
+      <td>${r.avg?`<div class="dots">${dots}</div>`:'—'}</td>
+      <td>${r.issues?`<span style="color:var(--r);font-weight:700">${r.issues}</span>`:'—'}</td>
+      <td style="white-space:nowrap;color:${ov?'var(--r)':'inherit'};font-weight:${ov?700:400}">${r.nxt?fmtDate(r.nxt):'—'}</td>
+    </tr>`;
+  }).join('');
+}
+function showExport(){
+  const p=document.getElementById('export-panel');
+  p.style.display=p.style.display==='none'?'block':'none';
+}
+async function doExport(){
+  const from=document.getElementById('exp-from').value;
+  const to=document.getElementById('exp-to').value;
+  if(!from||!to){alert('Please select a date range.');return}
+  try{
+    const vs=await dbGet('visits',`select=*&visit_date=gte.${from}&visit_date=lte.${to}&order=visit_date.desc&limit=10000`);
+    if(!vs.length){alert('No visits found in that date range.');return}
+    const headers=['Date','Rep','Customer','Visit Type','Issues','Notes','Next Visit','Score'];
+    const rows=vs.map(v=>[
+      v.visit_date,v.rep,v.customer,v.visit_type,
+      v.issues||'',v.notes||'',v.next_visit||'',v.score||''
+    ].map(f=>`"${String(f).replace(/"/g,'""')}"`).join(','));
+    const csv=[headers.join(','),...rows].join('\n');
+    const blob=new Blob([csv],{type:'text/csv'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`IPS_Visit_Log_${from}_to_${to}.csv`;
+    a.click();
+  } catch(e){alert('Export failed: '+e.message)}
+}
+
+// ===================== HEAT MAP =====================
+async function renderHeatmap(c){
+  c.innerHTML=`<div class="loading"><div class="spinner"></div><br>Building heat map...</div>`;
+  try{
+    const vs=await dbGet('visits','select=customer,rep,visit_date&order=visit_date.desc&limit=5000');
+    // Latest visit per customer
+    const latest={};
+    vs.forEach(v=>{
+      if(!latest[v.customer]||v.visit_date>latest[v.customer].date)
+        latest[v.customer]={date:v.visit_date,rep:v.rep};
+    });
+    const today=new Date().toISOString().split('T')[0];
+    const repList=[...new Set(vs.map(v=>v.rep))].sort();
+    window._hmData=latest;window._hmReps=repList;
+    c.innerHTML=`
+    <div class="hmap-header">
+      <strong style="font-size:13px;font-weight:700">Account Activity Heat Map</strong>
+      <select id="hm-rep" onchange="renderHmGrid()">
+        <option value="">All reps</option>
+        ${repList.map(r=>`<option value="${r}">${r}</option>`).join('')}
+      </select>
+    </div>
+    <div class="hmap-legend">
+      <div class="leg-item"><div class="leg-dot" style="background:#d4edbc;border:1px solid #9cc870"></div>1–7 days</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#e8f5d4;border:1px solid #b8d98a"></div>8–14 days</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#fff3cd;border:1px solid #e8c830"></div>15–30 days</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#ffe0b0;border:1px solid #f0a040"></div>31–60 days</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#fce8ee;border:1px solid #e8a0b8"></div>61–90 days</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#f8d0dc;border:1px solid #d86080"></div>90+ days</div>
+    </div>
+    <div id="hm-grid" class="hmap-grid"></div>`;
+    renderHmGrid();
+  } catch(e){c.innerHTML=`<div class="empty"><p>Error: ${e.message}</p></div>`}
+}
+function renderHmGrid(){
+  const fRep=(document.getElementById('hm-rep')||{}).value||'';
+  const data=window._hmData||{};
+  let entries=Object.entries(data);
+  if(fRep)entries=entries.filter(([,v])=>v.rep===fRep);
+  // Sort: worst first (most days since visit)
+  entries.sort((a,b)=>daysSince(a[1].date)-daysSince(b[1].date)*-1);
+  entries.sort((a,b)=>daysSince(b[1].date)-daysSince(a[1].date));
+  const grid=document.getElementById('hm-grid');if(!grid)return;
+  if(!entries.length){grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><p>No visits logged yet.</p></div>`;return}
+  grid.innerHTML=entries.map(([cust,{date,rep}])=>{
+    const d=daysSince(date);
+    let cls='hc-hot',daysLbl=`${d}d ago`;
+    if(d<=7)cls='hc-warm';
+    else if(d<=14)cls='hc-hot';
+    else if(d<=30)cls='hc-warn';
+    else if(d<=60)cls='hc-risk';
+    else if(d<=90)cls='hc-lapse';
+    else cls='hc-bad';
+    const shortRep=rep.split(' ')[0];
+    return`<div class="hmap-cell ${cls}" title="${cust}\n${rep}\nLast visit: ${fmtDate(date)} (${d} days ago)">
+      <div class="hc-name">${cust}</div>
+      <div class="hc-rep">${shortRep}</div>
+      <div class="hc-days">${daysLbl}</div>
+    </div>`;
+  }).join('');
+}
+
+// ===================== ADMIN =====================
+async function renderAdmin(c){
+  if(currentRep!=='Joe Thomas')return;
+  c.innerHTML=`<div class="loading"><div class="spinner"></div><br>Loading...</div>`;
+  try{
+    const custs=await dbGet('customers','select=id,name,rep&order=name.asc');
+    window._aCusts=custs;
+    c.innerHTML=`
+    <div class="card">
+      <div class="card-ttl">Add New Customer</div>
+      <div class="add-row">
+        <input type="text" id="a-name" placeholder="Customer name *">
+        <select id="a-rep">
+          <option value="">— No rep assigned —</option>
+          ${REPS.map(r=>`<option value="${r}">${r}</option>`).join('')}
+        </select>
+        <button class="add-btn" onclick="addCust()">+ Add</button>
+      </div>
+      <div class="msg" id="add-msg"></div>
+    </div>
+    <div class="card">
+      <div class="card-ttl" id="admin-count-ttl">Customer Accounts (${custs.length})</div>
+      <div class="toolbar" style="margin-bottom:10px">
+        <input type="text" id="a-srch" placeholder="Search customers..." oninput="filterAdmin()">
+        <select id="a-frep" onchange="filterAdmin()">
+          <option value="">All reps</option>
+          ${REPS.map(r=>`<option value="${r}">${r}</option>`).join('')}
+        </select>
+      </div>
+      <div id="admin-list"></div>
+    </div>`;
+    filterAdmin();
+  } catch(e){c.innerHTML=`<div class="empty"><p>Error: ${e.message}</p></div>`}
+}
+function filterAdmin(){
+  const srch=(document.getElementById('a-srch')||{}).value.toLowerCase()||'';
+  const frep=(document.getElementById('a-frep')||{}).value||'';
+  let custs=window._aCusts||[];
+  if(srch)custs=custs.filter(c=>c.name.toLowerCase().includes(srch));
+  if(frep)custs=custs.filter(c=>c.rep===frep);
+  const list=document.getElementById('admin-list');if(!list)return;
+  if(!custs.length){list.innerHTML=`<div class="empty" style="padding:1.5rem"><p>No customers match.</p></div>`;return}
+  const show=custs.slice(0,200);
+  list.innerHTML=show.map(c=>`
+    <div class="admin-row">
+      <div class="admin-name">${c.name}</div>
+      <div class="admin-rep">${c.rep||'<span style="color:#ccc;font-style:italic">Unassigned</span>'}</div>
+      <button class="admin-del" onclick="delCust(${c.id},'${c.name.replace(/'/g,"\\'")}')">✕</button>
+    </div>`).join('');
+  if(custs.length>200)list.innerHTML+=`<div style="font-size:11px;color:var(--muted);padding:8px 0;text-align:center">Showing 200 of ${custs.length}. Search to filter.</div>`;
+}
+async function addCust(){
+  const name=document.getElementById('a-name').value.trim();
+  const rep=document.getElementById('a-rep').value;
+  const msg=document.getElementById('add-msg');
+  if(!name){showMsg(msg,'Customer name is required.','err');return}
+  const btn=document.querySelector('.add-btn');btn.disabled=true;btn.textContent='Saving...';
+  try{
+    await dbPost('customers',{name,rep});
+    document.getElementById('a-name').value='';
+    showMsg(msg,`✓ "${name}" added.`,'ok');
+    await renderAdmin(document.getElementById('content'));
+  } catch(e){showMsg(msg,'Error: '+e.message,'err')}
+  btn.disabled=false;btn.textContent='+ Add';
+}
+async function delCust(id,name){
+  if(!confirm(`Delete "${name}"? This cannot be undone.`))return;
+  try{
+    await dbDelete('customers',id);
+    window._aCusts=window._aCusts.filter(c=>c.id!==id);
+    filterAdmin();
+    const ttl=document.getElementById('admin-count-ttl');
+    if(ttl)ttl.textContent=`Customer Accounts (${window._aCusts.length})`;
+  } catch(e){alert('Error: '+e.message)}
+}
+
+// ===================== UTILS =====================
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
+function showMsg(el,txt,type){el.textContent=txt;el.className='msg '+type;el.style.display='block'}
+function fmtDate(ds){if(!ds)return'—';const p=ds.split('T')[0].split('-');return`${p[2]}/${p[1]}/${p[0]}`}
+function daysSince(ds){if(!ds)return 999;return Math.max(0,Math.floor((Date.now()-new Date(ds).getTime())/86400000))}
+function getStatus(d){return d<=14?'Active':d<=30?'At Risk':'Lapsed'}
+
+// ===================== BOOT =====================
+initApp();
+</script>
+</body>
+</html>
