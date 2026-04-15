@@ -257,9 +257,7 @@ document.head.appendChild(mb);
     <div class="setup-ttl">IPS Call Log &mdash; Setup</div>
     <div class="setup-sub">Connect to your Supabase database.</div>
     <div class="step-row"><span class="step-num">1</span><div class="step-body">Supabase &rarr; SQL Editor &rarr; New query &rarr; paste &amp; run:</div></div>
-    <div class="sql-block" id="sql-block">-- IPS Call Log v8 - no schema changes required
--- All tables from v7 are still valid
--- Just ensure all reps have PINs set in Admin before deploying<button class="copy-btn" onclick="copySql()">Copy</button></div>
+    <div class="sql-block" id="sql-block">ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS visit_frequency text default '';<button class="copy-btn" onclick="copySql()">Copy</button></div>
     <div class="step-row" style="margin-top:12px"><span class="step-num">2</span><div class="step-body">Project Settings &rarr; API &rarr; copy Project URL and anon key.</div></div>
     <div class="field"><label>Project URL</label><input type="url" id="cfg-url" placeholder="https://xxxxxxxxxxxx.supabase.co"></div>
     <div class="field"><label>Anon / Public Key</label><input type="text" id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></div>
@@ -540,7 +538,7 @@ function renderLog(c,prefill){
   <div class="card">
     <div class="card-ttl">Log a Visit</div>
     <div class="field"><label>Date <span class="req">*</span></label>
-      <input type="text" id="f-date" placeholder="DD/MM/YYYY" maxlength="10" value="${todayDisp()}" oninput="fmtDateField(this)">
+      <input type="date" id="f-date" value="${todayISO()}">
     </div>
     <div class="field"><label>Customer <span class="req">*</span></label>
       <div class="cust-wrap">
@@ -580,7 +578,7 @@ function renderLog(c,prefill){
       <select id="f-secsup">${suppOptions("")}</select>
     </div>
     <div class="field"><label>Next Planned Visit</label>
-      <input type="text" id="f-next" placeholder="DD/MM/YYYY" maxlength="10" oninput="fmtDateField(this)">
+      <input type="date" id="f-next">
     </div>
     <div class="field"><label>Relationship Score</label>
       <div class="stars" id="star-row">${[1,2,3,4,5].map(i=>`<span class="star" onclick="setStar(${i})">\u2605</span>`).join("")}</div>
@@ -625,13 +623,13 @@ function pickType(el,t){logType=t;document.querySelectorAll("#type-chips .chip")
 function setStar(n){logScore=n;document.querySelectorAll("#star-row .star").forEach((s,i)=>s.classList.toggle("on",i<n));}
 
 async function submitLog(){
-  const dateParsed=parseDD(document.getElementById("f-date").value);
+  const dateParsed=document.getElementById("f-date").value;
   const cust=selectedCustomer||document.getElementById("cust-inp").value.trim();
   if(!cust){alert("Please select a customer.");return;}
-  if(!dateParsed||dateParsed.length!==10){alert("Please enter a valid date DD/MM/YYYY.");return;}
+  if(!dateParsed){alert("Please select a date.");return;}
   const btn=document.getElementById("sub-btn");btn.disabled=true;btn.textContent="Saving...";
   try{
-    const nxt=parseDD(document.getElementById("f-next").value)||null;
+    const nxt=document.getElementById("f-next").value||null;
     const brand=document.getElementById("f-brand").value.trim();
     const mainsup=document.getElementById("f-mainsup").value;
     const secsup=document.getElementById("f-secsup").value;
@@ -643,7 +641,7 @@ async function submitLog(){
     setTimeout(()=>banner.style.display="none",3500);
     ["cust-inp","f-issues","f-notes","f-actions","f-next","f-brand"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
     document.getElementById("f-mainsup").value="";document.getElementById("f-secsup").value="";
-    document.getElementById("f-date").value=todayDisp();
+    document.getElementById("f-date").value=todayISO();
     ["brand-badge","msup-badge","ssup-badge"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
     logScore=0;selectedCustomer="";logType="In-person";issuesOn=false;
     document.querySelectorAll("#star-row .star").forEach(s=>s.classList.remove("on"));
@@ -659,7 +657,13 @@ async function submitLog(){
 function visitHtml(v,showCust,canEdit){
   const custHtml=showCust?((isJoeType()||isDirector())?`<span class="hist-cust cust-link" onclick="openProfile('${esc(v.customer)}','history')">${v.customer}</span>`:`<div class="hist-cust">${v.customer}</div>`):`<div class="hist-cust">${fmtDate(v.visit_date)}</div>`;
   const dateHtml=showCust?`<div class="hist-date">${fmtDate(v.visit_date)}</div>`:`<div class="hist-date" style="font-weight:600;color:var(--g)">${v.rep}</div>`;
-  const editDelBtns=canEdit?`<div class="hist-btns"><button class="edit-btn" onclick="editVisit(${v.id})">Edit</button><button class="del-btn" onclick="deleteVisit(${v.id})">Delete</button></div>`:"";
+  // Edit: Joe can edit all, reps can edit their own
+  const canEditThis=isJoeType()||(v.rep===currentRep);
+  const editDelBtns=`<div class="hist-btns">
+    ${canEditThis?`<button class="edit-btn" onclick="editVisit(${v.id})">Edit</button>`:""}
+    ${isJoeType()?`<button class="del-btn" onclick="deleteVisit(${v.id})">Delete</button>`:""}
+    <button class="edit-btn" onclick="shareVisit(${JSON.stringify(v).replace(/`/g,"\`")})" style="border-color:var(--gold);color:#8a5a00">&#8679; Share</button>
+  </div>`;
   return`<div class="hist-item" id="visit-${v.id}">
     <div class="hist-top">${custHtml}${dateHtml}</div>
     <div class="hist-tags">
@@ -675,9 +679,26 @@ function visitHtml(v,showCust,canEdit){
   </div>`;
 }
 
+function shareVisit(v){
+  const lines=[];
+  lines.push("Visit Log — "+v.customer);
+  lines.push("Rep: "+v.rep+" · "+fmtDate(v.visit_date));
+  lines.push("Type: "+v.visit_type);
+  if(v.has_issues&&v.issues)lines.push("Issue: "+v.issues);
+  if(v.actions)lines.push("Actions: "+v.actions);
+  if(v.notes)lines.push("Notes: "+v.notes);
+  if(v.next_visit)lines.push("Next visit: "+fmtDate(v.next_visit));
+  if(v.score)lines.push("Relationship score: "+"★".repeat(v.score));
+  const text=lines.join("\n");
+  if(navigator.share){
+    navigator.share({title:"IPS Visit — "+v.customer,text:text}).catch(()=>{});
+  } else {
+    navigator.clipboard.writeText(text).then(()=>alert("Copied to clipboard!")).catch(()=>alert(text));
+  }
+}
+
 async function renderHistory(c){
   const isJoe=isJoeType();
-  const yest=yesterdayDisp(),tod=todayDisp();
   const vtypeOpts=`<option value="">All types</option>`+VTYPES.map(t=>`<option value="${t}">${t}</option>`).join("");
   c.innerHTML=`
   <div class="date-filter">
@@ -685,9 +706,9 @@ async function renderHistory(c){
     <label>Type:</label>
     <select id="hf-type" onchange="applyHistoryFilter()">${vtypeOpts}</select>
     <label>From:</label>
-    <input type="text" id="hf-from" maxlength="10" placeholder="DD/MM/YYYY" value="${yest}" oninput="fmtDateField(this)">
+    <input type="date" id="hf-from" value="${yesterdayISO()}">
     <label>To:</label>
-    <input type="text" id="hf-to" maxlength="10" placeholder="DD/MM/YYYY" value="${tod}" oninput="fmtDateField(this)">
+    <input type="date" id="hf-to" value="${todayISO()}">
     <button class="df-btn" onclick="applyHistoryFilter()">Filter</button>
   </div>
   <div id="history-results"><div class="loading"><div class="spinner"></div><br>Loading...</div></div>`;
@@ -706,12 +727,10 @@ async function applyHistoryFilter(){
   const res=document.getElementById("history-results");if(!res)return;
   res.innerHTML=`<div class="loading"><div class="spinner"></div><br>Loading...</div>`;
   const isJoe=isJoeType();
-  const fromRaw=(document.getElementById("hf-from")||{}).value||"";
-  const toRaw=(document.getElementById("hf-to")||{}).value||"";
+  const from=(document.getElementById("hf-from")||{}).value||"1970-01-01";
+  const to=(document.getElementById("hf-to")||{}).value||todayISO();
   const repFilter=(document.getElementById("hf-rep")||{}).value||"";
   const typeFilter=(document.getElementById("hf-type")||{}).value||"";
-  const from=parseDD(fromRaw)||"1970-01-01";
-  const to=parseDD(toRaw)||todayISO();
   try{
     let params=`select=*&visit_date=gte.${from}&visit_date=lte.${to}&order=visit_date.desc,created_at.desc&limit=500`;
     if(!isJoe)params+=`&rep=eq.${encodeURIComponent(currentRep)}`;
@@ -737,7 +756,7 @@ async function editVisit(id){
     mc.innerHTML=`<div class="edit-modal-overlay">
     <div class="edit-modal">
       <div class="edit-modal-ttl">Edit Visit &mdash; ${v.customer}</div>
-      <div class="field"><label>Date</label><input type="text" id="ev-date" maxlength="10" value="${fmtDate(v.visit_date)}" oninput="fmtDateField(this)"></div>
+      <div class="field"><label>Date</label><input type="date" id="ev-date" value="${v.visit_date?v.visit_date.split('T')[0]:''}"></div>
       <div class="field"><label>Visit Type</label><select id="ev-type">${VTYPES.map(t=>`<option${t===v.visit_type?" selected":""}>${t}</option>`).join("")}</select></div>
       <div class="field">
         <label>Issues</label>
@@ -753,7 +772,7 @@ async function editVisit(id){
       <div class="field"><label>Actions</label><input type="text" id="ev-actions" value="${v.actions||""}"></div>
       <div class="field"><label>Main Supplier</label><select id="ev-mainsup">${suppOptions(v.main_supplier||"")}</select></div>
       <div class="field"><label>Secondary Supplier</label><select id="ev-secsup">${suppOptions(v.secondary_supplier||"")}</select></div>
-      <div class="field"><label>Next Planned Visit</label><input type="text" id="ev-next" maxlength="10" value="${fmtDate(v.next_visit)}" oninput="fmtDateField(this)" placeholder="DD/MM/YYYY"></div>
+      <div class="field"><label>Next Planned Visit</label><input type="date" id="ev-next" value="${v.next_visit?v.next_visit.split('T')[0]:''}"></div>
       <div class="field"><label>Relationship Score</label>
         <div class="stars" id="ev-stars">${[1,2,3,4,5].map(i=>`<span class="star${(v.score||0)>=i?" on":""}" onclick="setEditStar(${i})">\u2605</span>`).join("")}</div>
       </div>
@@ -769,12 +788,12 @@ function toggleEditIssues(){window._editIssuesOn=!window._editIssuesOn;document.
 function setEditStar(n){document.querySelectorAll("#ev-stars .star").forEach((s,i)=>s.classList.toggle("on",i<n));}
 function closeEditModal(){const mc=document.getElementById("edit-modal-container");if(mc)mc.innerHTML="";}
 async function saveEdit(id){
-  const dateParsed=parseDD(document.getElementById("ev-date").value);
-  if(!dateParsed){alert("Please enter a valid date.");return;}
+  const dateParsed=document.getElementById("ev-date").value;
+  if(!dateParsed){alert("Please select a date.");return;}
   const score=document.querySelectorAll("#ev-stars .star.on").length||null;
   const issOn=window._editIssuesOn||false;
   try{
-    await dbPatch("visits","id=eq."+id,{visit_date:dateParsed,visit_type:document.getElementById("ev-type").value,has_issues:issOn,issues:issOn?document.getElementById("ev-issues").value.trim():"",notes:document.getElementById("ev-notes").value.trim(),actions:document.getElementById("ev-actions").value.trim(),main_supplier:document.getElementById("ev-mainsup").value,secondary_supplier:document.getElementById("ev-secsup").value,next_visit:parseDD(document.getElementById("ev-next").value)||null,score:score});
+    await dbPatch("visits","id=eq."+id,{visit_date:dateParsed,visit_type:document.getElementById("ev-type").value,has_issues:issOn,issues:issOn?document.getElementById("ev-issues").value.trim():"",notes:document.getElementById("ev-notes").value.trim(),actions:document.getElementById("ev-actions").value.trim(),main_supplier:document.getElementById("ev-mainsup").value,secondary_supplier:document.getElementById("ev-secsup").value,next_visit:document.getElementById("ev-next").value||null,score:score});
     closeEditModal();const at=document.querySelector(".tab.active");if(at)at.click();
   }catch(e){alert("Error saving: "+e.message);}
 }
@@ -856,6 +875,14 @@ async function shareOffer(src,title){
 }
 
 // ---- CUSTOMER PROFILE ----
+
+async function saveFrequency(custName, freq){
+  try{
+    await dbPatch("customers","name=eq."+encodeURIComponent(custName),{visit_frequency:freq});
+    const s=document.getElementById("freq-saved");
+    if(s){s.style.display="inline";setTimeout(()=>s.style.display="none",2000);}
+  }catch(e){alert("Error saving frequency: "+e.message);}
+}
 function openProfile(custName,origin){
   profileOrigin=origin;
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
@@ -898,6 +925,18 @@ async function renderProfile(c,custName){
       </div>
     </div>
     ${cu.customer_notes||canEdit?`<div class="cust-notes-card"><div class="cust-notes-ttl">Account Notes</div><div class="cust-notes-txt" id="cust-notes-txt">${cu.customer_notes||'<span style="color:#ccc;font-style:italic">No notes yet</span>'}</div>${canEdit?`<button class="cust-notes-edit" onclick="editCustNotes('${esc(custName)}','${esc(cu.customer_notes||"")}')">Edit notes</button>`:""}</div>`:""}
+    <div class="card" style="padding:12px 15px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Visit Frequency:</span>
+        <select id="freq-select" onchange="saveFrequency('${esc(custName)}',this.value)" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#fff;color:var(--text)">
+          <option value="">-- Not set --</option>
+          <option value="Weekly"${cu.visit_frequency==="Weekly"?" selected":""}>Weekly</option>
+          <option value="Bi-Weekly"${cu.visit_frequency==="Bi-Weekly"?" selected":""}>Bi-Weekly</option>
+          <option value="Monthly"${cu.visit_frequency==="Monthly"?" selected":""}>Monthly</option>
+        </select>
+        <span id="freq-saved" style="font-size:11px;color:var(--g);font-weight:600;display:none">✓ Saved</span>
+      </div>
+    </div>
     ${visits.length===0?`<div class="empty"><div class="empty-ico">&#128203;</div><p>No visits logged for this customer yet.</p></div>`:""}
     ${visits.map(v=>visitHtml(v,false,canEdit)).join("")}`;
   }catch(e){c.innerHTML=`<div class="empty"><p>Error: ${e.message}</p></div>`;}
@@ -941,8 +980,10 @@ async function renderMyDash(c){
     const atRisk=rows.filter(r=>r.st!=="Active").length;
     const allSc=vs.filter(v=>v.score);
     const avgSc=allSc.length?(allSc.reduce((a,v)=>a+v.score,0)/allSc.length).toFixed(1):"--";
-    const latest={};vs.forEach(v=>{if(!latest[v.customer]||v.visit_date>latest[v.customer])latest[v.customer]=v.visit_date;});
-    const entries=Object.entries(latest).sort((a,b)=>daysSince(b[1])-daysSince(a[1]));
+    const latest={};vs.forEach(v=>{if(!latest[v.customer]||v.visit_date>latest[v.customer].date)latest[v.customer]={date:v.visit_date};});
+    // Fetch frequencies for rep's customers
+    try{const fc=await dbGet("customers","select=name,visit_frequency&rep=eq."+encodeURIComponent(currentRep));fc.forEach(c=>{if(latest[c.name])latest[c.name].freq=c.visit_frequency||"";});}catch(e){}
+    const entries=Object.entries(latest).sort((a,b)=>daysSince(b[1].date)-daysSince(a[1].date));
     c.innerHTML=`
     <div class="metrics">
       <div class="metric"><div class="metric-val">${rows.length}</div><div class="metric-lbl">Accounts visited</div></div>
@@ -958,7 +999,7 @@ async function renderMyDash(c){
       <div class="leg-item"><div class="leg-dot" style="background:#f8d0dc;border:1px solid #d86080"></div>61+d</div>
     </div>
     <div class="hmap-grid">
-      ${entries.map(([cust,date])=>{const d=daysSince(date);const cls=d<=14?"hc-green":d<=30?"hc-amber":d<=60?"hc-orange":"hc-red";return`<div class="hmap-cell ${cls}" onclick="openProfile('${esc(cust)}','mydash')"><div class="hc-name">${cust}</div><div class="hc-days">${d}d ago</div></div>`;}).join("")}
+      ${entries.map(([cust,{date,freq}])=>{const d=daysSince(date);const cls=getFreqClass(d,freq||"");const ft=freq?`<div style="font-size:9px;opacity:.7;margin-bottom:2px">${freq}</div>`:"";return`<div class="hmap-cell ${cls}" onclick="openProfile('${esc(cust)}','mydash')"><div class="hc-name">${cust}</div>${ft}<div class="hc-days">${d}d ago</div></div>`;}).join("")}
     </div>`;
   }catch(e){c.innerHTML=`<div class="empty"><p>Error: ${e.message}</p></div>`;}
 }
@@ -1091,15 +1132,30 @@ async function doExport(){
 }
 
 // ---- HEAT MAP - 4 colour bands ----
+
+function getFreqClass(d, freq){
+  if(freq==="Weekly"){
+    if(d<=5)return"hc-green";if(d<=7)return"hc-amber";if(d<=14)return"hc-orange";return"hc-red";
+  } else if(freq==="Bi-Weekly"){
+    if(d<=10)return"hc-green";if(d<=14)return"hc-amber";if(d<=21)return"hc-orange";return"hc-red";
+  } else if(freq==="Monthly"){
+    if(d<=21)return"hc-green";if(d<=30)return"hc-amber";if(d<=45)return"hc-orange";return"hc-red";
+  }
+  // No frequency set - use fixed bands
+  if(d<=14)return"hc-green";if(d<=30)return"hc-amber";if(d<=60)return"hc-orange";return"hc-red";
+}
 async function renderHeatmap(c){
   c.innerHTML=`<div class="loading"><div class="spinner"></div><br>Building heat map...</div>`;
   try{
     const [vsArr,allCusts]=await Promise.all([
       dbGet("visits","select=customer,rep,visit_date&order=visit_date.desc&limit=5000"),
-      dbGet("customers","select=name,rep&order=name.asc")
+      dbGet("customers","select=name,rep,visit_frequency&order=name.asc")
     ]);
     const latest={};
     vsArr.forEach(v=>{if(!latest[v.customer]||v.visit_date>latest[v.customer].date)latest[v.customer]={date:v.visit_date,rep:v.rep};});
+    // Add frequency to latest map
+    const freqMap={};allCusts.forEach(cu=>freqMap[cu.name]=cu.visit_frequency||"");
+    Object.keys(latest).forEach(name=>latest[name].freq=freqMap[name]||"");
     const visitedNames=new Set(Object.keys(latest));
     const repList=[...new Set(vsArr.map(v=>v.rep))].sort();
     window._hmData=latest;window._hmUnvisited=allCusts.filter(cu=>!visitedNames.has(cu.name));
@@ -1129,10 +1185,11 @@ function renderHmGrid(){
     let entries=Object.entries(window._hmData||{});
     if(fRep)entries=entries.filter(([,v])=>v.rep===fRep);
     entries.sort((a,b)=>daysSince(b[1].date)-daysSince(a[1].date));
-    html+=entries.map(([cust,{date,rep}])=>{
+    html+=entries.map(([cust,{date,rep,freq}])=>{
       const d=daysSince(date);
-      const cls=d<=14?"hc-green":d<=30?"hc-amber":d<=60?"hc-orange":"hc-red";
-      return`<div class="hmap-cell ${cls}" onclick="openProfile('${esc(cust)}','heatmap')"><div class="hc-name">${cust}</div><div class="hc-rep">${rep.split(" ")[0]}</div><div class="hc-days">${d}d ago</div></div>`;
+      const cls=getFreqClass(d,freq||"");
+      const freqTag=freq?`<div style="font-size:9px;opacity:.7;margin-bottom:2px">${freq}</div>`:"";
+      return`<div class="hmap-cell ${cls}" onclick="openProfile('${esc(cust)}','heatmap')"><div class="hc-name">${cust}</div><div class="hc-rep">${rep.split(" ")[0]}</div>${freqTag}<div class="hc-days">${d}d ago</div></div>`;
     }).join("");
   }
   if(show!=="visited"){
