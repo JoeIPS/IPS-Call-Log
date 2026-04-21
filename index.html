@@ -257,7 +257,8 @@ document.head.appendChild(mb);
     <div class="setup-ttl">IPS Call Log &mdash; Setup</div>
     <div class="setup-sub">Connect to your Supabase database.</div>
     <div class="step-row"><span class="step-num">1</span><div class="step-body">Supabase &rarr; SQL Editor &rarr; New query &rarr; paste &amp; run:</div></div>
-    <div class="sql-block" id="sql-block">ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS visit_frequency text default '';<button class="copy-btn" onclick="copySql()">Copy</button></div>
+    <div class="sql-block" id="sql-block">ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS visit_frequency text default '';
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS is_target boolean default false;<button class="copy-btn" onclick="copySql()">Copy</button></div>
     <div class="step-row" style="margin-top:12px"><span class="step-num">2</span><div class="step-body">Project Settings &rarr; API &rarr; copy Project URL and anon key.</div></div>
     <div class="field"><label>Project URL</label><input type="url" id="cfg-url" placeholder="https://xxxxxxxxxxxx.supabase.co"></div>
     <div class="field"><label>Anon / Public Key</label><input type="text" id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></div>
@@ -471,10 +472,11 @@ async function loginAs(rep){
   showScreen("s-app");buildTabs();
   try{
     let custs;
-    if(isJoeType()||isDirector())custs=await dbGet("customers","select=name&order=name.asc");
-    else custs=await dbGet("customers","select=name&rep=eq."+encodeURIComponent(rep)+"&order=name.asc");
-    myCustomers=custs.map(c=>c.name);
-  }catch(e){myCustomers=[];}
+    if(isJoeType()||isDirector())custs=await dbGet("customers","select=name,is_target&order=name.asc");
+    else custs=await dbGet("customers","select=name,is_target&rep=eq."+encodeURIComponent(rep)+"&order=name.asc");
+    myCustomers=custs.filter(c=>!c.is_target).map(c=>c.name);
+    window._targetNames=new Set(custs.filter(c=>c.is_target).map(c=>c.name));
+  }catch(e){myCustomers=[];window._targetNames=new Set();}
   await checkNewOffers();
   showTab(isJoeType()?"dashboard":isDirector()?"dashboard":"mydash");
 }
@@ -602,11 +604,52 @@ function renderLog(c,prefill){
 }
 function toggleIssues(){issuesOn=!issuesOn;document.getElementById("issues-tog").classList.toggle("on",issuesOn);document.getElementById("issues-lbl").textContent=issuesOn?"Issue raised:":"No issues reported";document.getElementById("issues-box").style.display=issuesOn?"block":"none";}
 function hlDD(opts){opts.forEach((o,i)=>o.classList.toggle("hi",i===ddIndex));}
+async function addTargetAccount(name){
+  if(!name){return;}
+  closeDD();
+  document.getElementById("cust-inp").value=name;
+  selectedCustomer=name;
+  // Check if already exists as target
+  try{
+    const ex=await dbGet("customers","select=id,is_target&name=eq."+encodeURIComponent(name)+"&limit=1");
+    if(ex.length){
+      // Already exists - just use it
+      if(ex[0].is_target){
+        showTargetBadge();
+      }
+      return;
+    }
+  }catch(e){}
+  // Create as target account
+  try{
+    await dbPost("customers",{name,rep:currentRep,paint_brand:"",main_supplier:"",secondary_supplier:"",customer_notes:"",is_target:true,visit_frequency:""});
+    myCustomers=[...myCustomers,name].sort();
+    showTargetBadge();
+  }catch(e){alert("Error creating target account: "+e.message);}
+}
+function showTargetBadge(){
+  const inp=document.getElementById("cust-inp");if(!inp)return;
+  let badge=document.getElementById("target-badge");
+  if(!badge){
+    badge=document.createElement("div");badge.id="target-badge";
+    badge.style.cssText="font-size:11px;font-weight:700;color:#8a5a00;background:#fff8e6;border:1px solid #f0d060;border-radius:99px;padding:2px 10px;display:inline-block;margin-top:5px";
+    badge.textContent="Target Account";
+    inp.parentNode.insertBefore(badge,inp.nextSibling);
+  }
+}
+
 function filterC(){
   ddIndex=-1;const q=document.getElementById("cust-inp").value.toLowerCase();const dd=document.getElementById("cust-dd");
   if(!q){dd.style.display="none";return;}
   const m=myCustomers.filter(c=>c.toLowerCase().includes(q)).slice(0,60);
-  if(!m.length){dd.style.display="none";return;}
+  if(!m.length){
+    // No match - show target account prompt
+    dd.innerHTML=`<div style="padding:10px 12px;font-size:12px;color:var(--muted)">No match found.</div>
+    <div class="cust-opt" style="background:#fff8e6;border-top:1px solid #f0d060" onmousedown="addTargetAccount('${document.getElementById('cust-inp').value.trim().replace(/'/g,"\\'")}')">
+      <span style="font-size:12px;font-weight:700;color:#8a5a00">&#43; Add as Target Account: "${document.getElementById('cust-inp').value.trim()}"</span>
+    </div>`;
+    dd.style.display="block";return;
+  }
   dd.innerHTML=m.map(c=>`<div class="cust-opt" onmousedown="pickC(this.dataset.n)" data-n="${c.replace(/"/g,'&quot;')}">  ${c}</div>`).join("");
   dd.style.display="block";
 }
@@ -674,6 +717,7 @@ function visitHtml(v,showCust,canEdit){
       <div class="htag">${v.visit_type}</div>
       ${showCust&&(isJoeType()||isDirector())?`<div class="htag">${v.rep}</div>`:""}
       ${v.score?`<div class="htag">${"\u2605".repeat(v.score)}</div>`:""}
+      ${(window._targetNames&&window._targetNames.has(v.customer))?`<div class="htag" style="background:#fff8e6;color:#8a5a00;border-color:#f0d060">&#127919; Target</div>`:""}
     </div>
     ${v.has_issues&&v.issues?`<div class="hist-issue">\u26a0 ${v.issues}</div>`:""}
     ${v.actions?`<div class="hist-actions-txt">\u2192 ${v.actions}</div>`:""}
@@ -816,12 +860,45 @@ async function saveEdit(id){
 async function renderMyCustomers(c){
   c.innerHTML=`<div class="loading"><div class="spinner"></div><br>Loading your accounts...</div>`;
   try{
-    const custs=await dbGet("customers","select=id,name,paint_brand,main_supplier&rep=eq."+encodeURIComponent(currentRep)+"&order=name.asc");
-    if(!custs.length){c.innerHTML=`<div class="empty"><div class="empty-ico">&#128101;</div><p>No accounts assigned yet.</p></div>`;return;}
-    window._allMyCusts=custs;
-    c.innerHTML=`<input type="text" class="custs-search" id="custs-srch" placeholder="Search ${custs.length} accounts..." oninput="filterMyCusts()"><div id="custs-list"></div>`;
+    const [custs,targets]=await Promise.all([
+      dbGet("customers","select=id,name,paint_brand,main_supplier&rep=eq."+encodeURIComponent(currentRep)+"&is_target=eq.false&order=name.asc"),
+      dbGet("customers","select=id,name,paint_brand,main_supplier&rep=eq."+encodeURIComponent(currentRep)+"&is_target=eq.true&order=name.asc")
+    ]);
+    window._allMyCusts=custs;window._allMyTargets=targets;
+    const total=custs.length;
+    c.innerHTML=`
+    <input type="text" class="custs-search" id="custs-srch" placeholder="Search ${total} accounts..." oninput="filterMyCusts()">
+    <div id="custs-list"></div>
+    <div id="target-section" style="margin-top:16px">
+      <div onclick="toggleTargets()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 0;border-top:1px solid var(--border)">
+        <span style="font-size:11px;font-weight:700;color:#8a5a00;text-transform:uppercase;letter-spacing:.05em;flex:1">&#127919; Target Accounts (${targets.length})</span>
+        <span id="target-chevron" style="color:var(--muted);font-size:14px">&#8250;</span>
+      </div>
+      <div id="target-list" style="display:none"></div>
+    </div>`;
     renderMyCustsList(custs);
+    if(targets.length)renderTargetList(targets);
   }catch(e){c.innerHTML=`<div class="empty"><p>Error: ${e.message}</p></div>`;}
+}
+function toggleTargets(){
+  const list=document.getElementById("target-list");
+  const chev=document.getElementById("target-chevron");
+  if(!list)return;
+  const open=list.style.display==="none";
+  list.style.display=open?"block":"none";
+  if(chev)chev.innerHTML=open?"&#8964;":"&#8250;";
+}
+function renderTargetList(targets){
+  const list=document.getElementById("target-list");if(!list)return;
+  if(!targets.length){list.innerHTML=`<div style="font-size:12px;color:var(--muted);padding:8px 0">No target accounts yet.</div>`;return;}
+  list.innerHTML=targets.map(cu=>`
+    <div class="cust-list-item" onclick="openProfile('${esc(cu.name)}','mycusts')" style="padding-left:8px">
+      <div>
+        <div class="cli-name">${cu.name} <span style="font-size:9px;background:#fff8e6;color:#8a5a00;border:1px solid #f0d060;border-radius:99px;padding:1px 6px;font-weight:700;vertical-align:middle">Target</span></div>
+        ${cu.paint_brand||cu.main_supplier?`<div class="cli-sub">${[cu.paint_brand,cu.main_supplier].filter(Boolean).join(" · ")}</div>`:""}
+      </div>
+      <div class="cli-arrow">&#8250;</div>
+    </div>`).join("");
 }
 function filterMyCusts(){
   const q=(document.getElementById("custs-srch").value||"").toLowerCase();
@@ -897,6 +974,19 @@ async function saveFrequency(custName, freq){
     if(s){s.style.display="inline";setTimeout(()=>s.style.display="none",2000);}
   }catch(e){alert("Error saving frequency: "+e.message);}
 }
+async function convertToCustomer(custName){
+  if(!confirm('Convert "'+custName+'" to a full customer account? This will assign them to a rep and remove the Target flag.'))return;
+  const rep=prompt("Assign to rep (leave blank to keep current):","")||"";
+  try{
+    const update={is_target:false};
+    if(rep)update.rep=rep;
+    await dbPatch("customers","name=eq."+encodeURIComponent(custName),update);
+    // Refresh profile
+    if(window._targetNames)window._targetNames.delete(custName);
+    renderProfile(document.getElementById("content"),custName);
+  }catch(e){alert("Error: "+e.message);}
+}
+
 function openProfile(custName,origin){
   profileOrigin=origin;
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
@@ -921,7 +1011,7 @@ async function renderProfile(c,custName){
     <div class="profile-header">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px">
         <div>
-          <div class="profile-name">${cu.name}</div>
+          <div class="profile-name">${cu.name}${cu.is_target?` <span style="font-size:12px;background:#fff8e6;color:#8a5a00;border:1px solid #f0d060;border-radius:99px;padding:2px 10px;font-weight:700;vertical-align:middle">&#127919; Target Account</span>`:""}</div>
           <div class="profile-meta">
             ${cu.rep?`<span class="profile-tag">${cu.rep}</span>`:""}
             ${cu.paint_brand?`<span class="profile-tag brand">${PAINT_TIN}${cu.paint_brand}</span>`:""}
@@ -930,7 +1020,10 @@ async function renderProfile(c,custName){
             ${lastV?`<span class="profile-tag">Last visit: ${fmtDate(lastV.visit_date)} (${dSince}d ago)</span>`:""}
           </div>
         </div>
-        ${!isDirector()?`<button class="log-visit-btn" onclick="logForCust('${esc(custName)}')">+ Log Visit</button>`:""}
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${!isDirector()?`<button class="log-visit-btn" onclick="logForCust('${esc(custName)}')">+ Log Visit</button>`:""}
+          ${isJoeType()&&cu.is_target?`<button class="log-visit-btn" style="background:var(--gold);color:#5a3a00" onclick="convertToCustomer('${esc(custName)}')">Convert to Customer</button>`:""}
+        </div>
       </div>
       <div class="profile-stats">
         <div class="pstat"><div class="pstat-val">${visits.length}</div><div class="pstat-lbl">Total visits</div></div>
@@ -1025,7 +1118,7 @@ async function renderDashboard(c){
   try{
     const [vs,allCusts]=await Promise.all([
       dbGet("visits","select=*&order=visit_date.desc&limit=5000"),
-      dbGet("customers","select=name,rep&order=name.asc")
+      dbGet("customers","select=name,rep,is_target&order=name.asc")
     ]);
     const td=todayISO();
     const monthStart=new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().split("T")[0];
@@ -1041,14 +1134,21 @@ async function renderDashboard(c){
       const isOverdue=nxt&&nxt<td&&last.visit_date<nxt;
       return{cust,rep:last.rep,d,st:getStatus(d),vn:obj.visits.length,avg,issues,nxt,lastDate:last.visit_date,isOverdue,unvisited:false};
     });
-    const unvisitedRows=allCusts.filter(cu=>!visitedNames.has(cu.name)).map(cu=>({cust:cu.name,rep:cu.rep||"",d:9999,st:"Unvisited",vn:0,avg:null,issues:0,nxt:null,lastDate:null,isOverdue:false,unvisited:true}));
+    const unvisitedRows=allCusts.filter(cu=>!visitedNames.has(cu.name)&&!cu.is_target).map(cu=>({cust:cu.name,rep:cu.rep||"",d:9999,st:"Unvisited",vn:0,avg:null,issues:0,nxt:null,lastDate:null,isOverdue:false,unvisited:true,isTarget:false}));
+    const targetRows=allCusts.filter(cu=>cu.is_target).map(cu=>{
+      const hasVisit=visitedNames.has(cu.name);
+      const visitData=hasVisit?cmap[cu.name]:null;
+      const lastV=visitData?[...visitData.visits].sort((a,b)=>a.visit_date>b.visit_date?1:-1).pop():null;
+      const d=lastV?daysSince(lastV.visit_date):9999;
+      return{cust:cu.name,rep:cu.rep||"",d,st:hasVisit?getStatus(d):"Unvisited",vn:hasVisit?visitData.visits.length:0,avg:null,issues:0,nxt:null,lastDate:lastV?lastV.visit_date:null,isOverdue:false,unvisited:!hasVisit,isTarget:true};
+    });
     const thisMonthV=vs.filter(v=>v.visit_date>=monthStart).length;
     const atRisk=rows.filter(r=>r.st!=="Active").length;
     const allSc=vs.filter(v=>v.score);const avgSc=allSc.length?(allSc.reduce((a,v)=>a+v.score,0)/allSc.length).toFixed(1):"--";
     const firstDate=vs.length?vs.reduce((m,v)=>v.visit_date<m?v.visit_date:m,vs[0].visit_date):null;
     const avgPerDay=firstDate?(vs.length/Math.max(1,daysSince(firstDate))).toFixed(1):"--";
     const repList=[...new Set(vs.map(v=>v.rep))].sort();
-    window._dRows=[...rows,...unvisitedRows];window._dToday=td;dashSort={col:"d",dir:"desc"};
+    window._dRows=[...rows,...unvisitedRows,...targetRows];window._dToday=td;dashSort={col:"d",dir:"desc"};
     const canEdit=isJoeType();
     const defFrom=fmtDate(new Date(Date.now()-90*86400000).toISOString().split("T")[0]);
     c.innerHTML=`
@@ -1061,7 +1161,7 @@ async function renderDashboard(c){
     <div class="toolbar">
       <input type="text" id="d-srch" placeholder="Search..." oninput="filterDash()">
       <select id="d-rep" onchange="filterDash()"><option value="">All reps</option>${repList.map(r=>`<option value="${r}">${r}</option>`).join("")}</select>
-      <select id="d-sts" onchange="filterDash()"><option value="">All statuses</option><option>Active</option><option>At Risk</option><option>Lapsed</option><option>Unvisited</option></select>
+      <select id="d-sts" onchange="filterDash()"><option value="">All statuses</option><option>Active</option><option>At Risk</option><option>Lapsed</option><option>Unvisited</option><option value="Target">Target Accounts</option></select>
       ${canEdit?`<button class="export-btn" onclick="showExport()">\u2b07 Export</button>`:""}
     </div>
     ${canEdit?`<div id="export-panel" style="display:none" class="card">
@@ -1099,8 +1199,9 @@ function filterDash(){
   let rows=window._dRows||[];
   if(srch)rows=rows.filter(r=>r.cust.toLowerCase().includes(srch.toLowerCase())||r.rep.toLowerCase().includes(srch.toLowerCase()));
   if(fR)rows=rows.filter(r=>r.rep===fR);
-  if(fS==="Unvisited")rows=rows.filter(r=>r.unvisited);
-  else if(fS)rows=rows.filter(r=>!r.unvisited&&r.st===fS);
+  if(fS==="Unvisited")rows=rows.filter(r=>r.unvisited&&!r.isTarget);
+  else if(fS==="Target")rows=rows.filter(r=>r.isTarget);
+  else if(fS)rows=rows.filter(r=>!r.unvisited&&!r.isTarget&&r.st===fS);
   rows=[...rows].sort((a,b)=>{
     if(a.unvisited&&!b.unvisited)return 1;if(!a.unvisited&&b.unvisited)return -1;
     const v1=a[dashSort.col]??-1,v2=b[dashSort.col]??-1;return dashSort.dir==="asc"?v1-v2:v2-v1;
@@ -1108,6 +1209,7 @@ function filterDash(){
   const td=window._dToday||"";
   const tb=document.getElementById("dash-tbody");if(!tb)return;
   tb.innerHTML=rows.map(r=>{
+    if(r.isTarget)return`<tr style="background:#fffdf0"><td><span class="cust-link" onclick="openProfile('${esc(r.cust)}','dashboard')">${r.cust}</span> <span style="font-size:9px;background:#fff8e6;color:#8a5a00;border:1px solid #f0d060;border-radius:99px;padding:1px 6px;font-weight:700">Target</span></td><td style="font-size:11px">${r.rep}</td><td><span class="badge b-unv">${r.st}</span></td><td>${r.vn}</td><td>${r.lastDate?fmtDate(r.lastDate):"--"}</td><td>${r.d<9999?r.d+"d":"--"}</td><td colspan="4" style="color:var(--muted);font-size:11px">Prospect</td></tr>`;
     if(r.unvisited)return`<tr style="opacity:.6"><td><span class="cust-link" onclick="openProfile('${esc(r.cust)}','dashboard')">${r.cust}</span></td><td style="font-size:11px">${r.rep}</td><td><span class="badge b-unv">Unvisited</span></td><td colspan="7" style="color:var(--muted);font-size:11px">No visits logged</td></tr>`;
     const dots=r.avg?Array.from({length:5},(_,i)=>`<div class="dot ${i<Math.round(r.avg)?"dot-on":"dot-off"}"></div>`).join(""):"--";
     const ov=r.nxt&&r.nxt<td;
