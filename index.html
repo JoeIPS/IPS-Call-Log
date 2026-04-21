@@ -604,28 +604,65 @@ function renderLog(c,prefill){
 }
 function toggleIssues(){issuesOn=!issuesOn;document.getElementById("issues-tog").classList.toggle("on",issuesOn);document.getElementById("issues-lbl").textContent=issuesOn?"Issue raised:":"No issues reported";document.getElementById("issues-box").style.display=issuesOn?"block":"none";}
 function hlDD(opts){opts.forEach((o,i)=>o.classList.toggle("hi",i===ddIndex));}
-async function addTargetAccount(name){
-  if(!name){return;}
+function addTargetAccount(name){
+  if(!name)return;
   closeDD();
-  document.getElementById("cust-inp").value=name;
-  selectedCustomer=name;
-  // Check if already exists as target
+  // Show modal to collect name + mandatory postcode
+  const mc=document.getElementById("edit-modal-container");
+  mc.innerHTML=`<div class="edit-modal-overlay">
+  <div class="edit-modal">
+    <div class="edit-modal-ttl">&#127919; Add Target Account</div>
+    <div class="field">
+      <label>Business Name <span class="req">*</span></label>
+      <input type="text" id="ta-name" value="${name.replace(/"/g,'&quot;')}" placeholder="Business name...">
+    </div>
+    <div class="field">
+      <label>Postcode <span class="req">*</span></label>
+      <input type="text" id="ta-postcode" placeholder="e.g. BS1 4DJ" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+      <div class="field-hint">Required for map pin placement</div>
+    </div>
+    <div class="field">
+      <label>Area / Town</label>
+      <input type="text" id="ta-area" placeholder="e.g. Bristol">
+    </div>
+    <div class="msg" id="ta-msg"></div>
+    <div class="modal-btns">
+      <button class="modal-cancel-btn" onclick="closeEditModal()">Cancel</button>
+      <button class="modal-save-btn" onclick="saveTargetAccount()">Add Target</button>
+    </div>
+  </div></div>`;
+}
+
+async function saveTargetAccount(){
+  const name=document.getElementById("ta-name").value.trim();
+  const postcode=document.getElementById("ta-postcode").value.trim().toUpperCase();
+  const area=document.getElementById("ta-area").value.trim();
+  const msg=document.getElementById("ta-msg");
+  if(!name){showMsg(msg,"Business name is required.","err");return;}
+  if(!postcode){showMsg(msg,"Postcode is required for map placement.","err");return;}
+  // Basic postcode validation
+  if(!/^[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}$/.test(postcode)){
+    showMsg(msg,"Please enter a valid UK postcode (e.g. BS1 4DJ).","err");return;
+  }
   try{
     const ex=await dbGet("customers","select=id,is_target&name=eq."+encodeURIComponent(name)+"&limit=1");
     if(ex.length){
-      // Already exists - just use it
-      if(ex[0].is_target){
-        showTargetBadge();
-      }
+      closeEditModal();
+      document.getElementById("cust-inp").value=name;
+      selectedCustomer=name;
+      if(ex[0].is_target)showTargetBadge();
       return;
     }
-  }catch(e){}
-  // Create as target account
-  try{
-    await dbPost("customers",{name,rep:currentRep,paint_brand:"",main_supplier:"",secondary_supplier:"",customer_notes:"",is_target:true,visit_frequency:""});
+    // Extract district from postcode
+    const district=(postcode.match(/^([A-Z]{1,2}\d{1,2}[A-Z]?)/)||[])[1]||"";
+    await dbPost("customers",{name,rep:currentRep,paint_brand:"",main_supplier:"",secondary_supplier:"",customer_notes:"",is_target:true,visit_frequency:"",postcode,district,area});
     myCustomers=[...myCustomers,name].sort();
+    if(window._targetNames)window._targetNames.add(name);
+    closeEditModal();
+    document.getElementById("cust-inp").value=name;
+    selectedCustomer=name;
     showTargetBadge();
-  }catch(e){alert("Error creating target account: "+e.message);}
+  }catch(e){showMsg(document.getElementById("ta-msg"),"Error: "+e.message,"err");}
 }
 function showTargetBadge(){
   const inp=document.getElementById("cust-inp");if(!inp)return;
@@ -1469,10 +1506,16 @@ async function renderMap(c){
 
   // Fetch visits to get latest visit per customer
   let visitMap={};
+  let targetAccounts=[];
   try{
-    const vs=await dbGet("visits","select=customer,visit_date&order=visit_date.desc&limit=5000");
+    const [vs,targets]=await Promise.all([
+      dbGet("visits","select=customer,visit_date&order=visit_date.desc&limit=5000"),
+      dbGet("customers","select=name,rep,postcode&is_target=eq.true&order=name.asc")
+    ]);
     vs.forEach(v=>{if(!visitMap[v.customer]||v.visit_date>visitMap[v.customer])visitMap[v.customer]=v.visit_date;});
+    targetAccounts=targets.filter(t=>t.postcode);
   }catch(e){}
+  window._mapTargets=targetAccounts;
 
   const repList=[...new Set(GEODATA.map(c=>c.rep).filter(Boolean))].sort();
 
@@ -1498,6 +1541,7 @@ async function renderMap(c){
     <div style="font-size:11px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#E8B840;display:inline-block"></span>At risk (15-60d)</div>
     <div style="font-size:11px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#A8193D;display:inline-block"></span>Lapsed (60d+)</div>
     <div style="font-size:11px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#aaa;display:inline-block"></span>Unvisited</div>
+    <div style="font-size:11px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:2px;background:#E8B840;border:2px solid #8a5a00;display:inline-block"></span>Target account</div>
   </div>
   <div id="map-container" style="height:65vh;border-radius:12px;overflow:hidden;border:1px solid var(--border);position:relative"></div>
   <div id="map-stats" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>`;
@@ -1627,10 +1671,41 @@ function refreshMap(){
     });
   }
 
+  // ---- TARGET ACCOUNT PINS (gold diamonds) ----
+  if(layerMode!=='coverage'){
+    let targets=window._mapTargets||[];
+    if(repFilter)targets=targets.filter(t=>t.rep===repFilter);
+    targets.forEach(t=>{
+      if(!t.postcode)return;
+      const district=(t.postcode.match(/^([A-Z]{1,2}\d{1,2}[A-Z]?)/)||[])[1]||"";
+      const coords=DISTRICT_COORDS[district];if(!coords)return;
+      // Slight offset so target pins don't overlap customer pins
+      const lat=coords[0]+0.008;const lng=coords[1]+0.008;
+      const marker=L.marker([lat,lng],{
+        icon:L.divIcon({
+          className:'',
+          html:`<div style="width:14px;height:14px;background:#E8B840;border:2px solid #8a5a00;transform:rotate(45deg);box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>`,
+          iconSize:[14,14],iconAnchor:[7,7]
+        }),zIndexOffset:1000
+      });
+      const lv=visitMap[t.name];
+      const dAgo=lv?Math.floor((Date.now()-new Date(lv).getTime())/86400000):null;
+      marker.bindPopup(`
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px">${t.name}</div>
+        <div style="font-size:11px;background:#fff8e6;color:#8a5a00;border-radius:99px;padding:1px 8px;display:inline-block;margin-bottom:4px;font-weight:700">&#127919; Target Account</div>
+        <div style="font-size:11px;color:#666;margin-bottom:2px">${t.rep||'Unassigned'}</div>
+        <div style="font-size:11px;color:#666;margin-bottom:4px">${t.postcode}</div>
+        <div style="font-size:11px;font-weight:600;color:#8a5a00">${lv?dAgo+'d since last contact':'Not yet contacted'}</div>
+      `,{maxWidth:220});
+      marker.addTo(window._pinLayer);
+    });
+  }
+
   // Stats
   const visited=custs.filter(c=>visitMap[c.n]).length;
+  const targetCount=(window._mapTargets||[]).filter(t=>repFilter?t.rep===repFilter:true).length;
   const stats=document.getElementById('map-stats');
-  if(stats)stats.textContent=`Showing ${custs.length} accounts${repFilter?' for '+repFilter:''} \xb7 ${visited} visited \xb7 ${custs.length-visited} unvisited`;
+  if(stats)stats.textContent=`Showing ${custs.length} accounts${repFilter?' for '+repFilter:''} \xb7 ${visited} visited \xb7 ${custs.length-visited} unvisited${targetCount?' \xb7 '+targetCount+' targets':''}`;
 }
 
 function getDistrictRadius(dist){
