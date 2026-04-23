@@ -246,6 +246,7 @@ const manifest={name:'IPS Call Log',short_name:'IPS Call Log',start_url:'./',dis
 const mb=document.createElement('link');mb.rel='manifest';
 mb.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(manifest));
 document.head.appendChild(mb);
+  if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
 </script>
 </head>
 <body>
