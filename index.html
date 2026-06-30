@@ -259,7 +259,40 @@ document.head.appendChild(mb);
     <div class="setup-sub">Connect to your Supabase database.</div>
     <div class="step-row"><span class="step-num">1</span><div class="step-body">Supabase &rarr; SQL Editor &rarr; New query &rarr; paste &amp; run:</div></div>
     <div class="sql-block" id="sql-block">ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS visit_frequency text default '';
-ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS is_target boolean default false;<button class="copy-btn" onclick="copySql()">Copy</button></div>
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS is_target boolean default false;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS postcode text default '';
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS area text default '';
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS district text default '';
+CREATE TABLE IF NOT EXISTS public.surveys (
+  id bigserial primary key,
+  rep text, customer text, survey_date date,
+  problem1 text default '', problem2 text default '', problem3 text default '',
+  created_at timestamptz default now()
+);
+ALTER TABLE public.surveys ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "open" ON public.surveys;
+CREATE POLICY "open" ON public.surveys FOR ALL USING (current_setting('request.headers',true)::json-&gt;&gt;'x-app-secret' = 'od2S2mXqttJVpvUzVYaDLe9tKTjZ1HABxJIpAOOs') WITH CHECK (current_setting('request.headers',true)::json-&gt;&gt;'x-app-secret' = 'od2S2mXqttJVpvUzVYaDLe9tKTjZ1HABxJIpAOOs');
+CREATE TABLE IF NOT EXISTS public.suppliers_data (
+  id bigserial primary key,
+  name text not null,
+  payment_terms text default '', settlement_discount text default '',
+  rebate_period text default '', rebate_tiers text default '',
+  spend_ytd numeric default 0, spend_target numeric default 0,
+  product_rebates text default '', special_deals text default '',
+  rep_name text default '', rep_phone text default '',
+  price_list_url text default '', notes text default '',
+  created_at timestamptz default now()
+);
+ALTER TABLE public.suppliers_data ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "open" ON public.suppliers_data;
+CREATE POLICY "open" ON public.suppliers_data FOR ALL USING (current_setting('request.headers',true)::json-&gt;&gt;'x-app-secret' = 'od2S2mXqttJVpvUzVYaDLe9tKTjZ1HABxJIpAOOs') WITH CHECK (current_setting('request.headers',true)::json-&gt;&gt;'x-app-secret' = 'od2S2mXqttJVpvUzVYaDLe9tKTjZ1HABxJIpAOOs');
+CREATE TABLE IF NOT EXISTS public.app_settings (
+  key text primary key, value text default ''
+);
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "open" ON public.app_settings;
+CREATE POLICY "open" ON public.app_settings FOR ALL USING (current_setting('request.headers',true)::json-&gt;&gt;'x-app-secret' = 'od2S2mXqttJVpvUzVYaDLe9tKTjZ1HABxJIpAOOs') WITH CHECK (current_setting('request.headers',true)::json-&gt;&gt;'x-app-secret' = 'od2S2mXqttJVpvUzVYaDLe9tKTjZ1HABxJIpAOOs');
+INSERT INTO public.app_settings (key,value) VALUES ('survey_enabled','true') ON CONFLICT (key) DO NOTHING;<button class="copy-btn" onclick="copySql()">Copy</button></div>
     <div class="step-row" style="margin-top:12px"><span class="step-num">2</span><div class="step-body">Project Settings &rarr; API &rarr; copy Project URL and anon key.</div></div>
     <div class="field"><label>Project URL</label><input type="url" id="cfg-url" placeholder="https://xxxxxxxxxxxx.supabase.co"></div>
     <div class="field"><label>Anon / Public Key</label><input type="text" id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></div>
@@ -479,6 +512,8 @@ async function loginAs(rep){
     window._targetNames=new Set(custs.filter(c=>c.is_target).map(c=>c.name));
   }catch(e){myCustomers=[];window._targetNames=new Set();}
   await checkNewOffers();
+  await loadSurveySetting();
+  buildTabs();
   showTab(isJoeType()?"dashboard":isDirector()?"dashboard":"mydash");
 }
 function switchRep(){currentRep=null;loginPinEntry="";showLogin();}
@@ -512,11 +547,17 @@ function updateOfferBadge(){
 
 function buildTabs(){
   const isJoe=isJoeType();const isDir=isDirector();
-  const list=isJoe
-    ?[["dashboard","Dashboard"],["heatmap","Heat Map"],["map","Map"],["log","Log Visit"],["history","All History"],["offers","Offers"],["admin","Admin"]]
-    :isDir
-    ?[["dashboard","Dashboard"],["heatmap","Heat Map"],["offers","Offers"]]
-    :[["mydash","My Dashboard"],["mycusts","My Customers"],["log","Log Visit"],["history","My Visits"],["offers","Offers"]];
+  const surveyOn=window._surveyEnabled;
+  let list;
+  if(isJoe){
+    list=[["dashboard","Dashboard"],["heatmap","Heat Map"],["map","Map"],["log","Log Visit"],["history","All History"],["offers","Offers"],["suppliers","Suppliers"],["admin","Admin"]];
+    if(surveyOn)list.splice(6,0,["survey","Survey"]);
+  } else if(isDir){
+    list=[["dashboard","Dashboard"],["heatmap","Heat Map"],["offers","Offers"]];
+  } else {
+    list=[["mydash","My Dashboard"],["mycusts","My Customers"],["log","Log Visit"],["history","My Visits"],["offers","Offers"]];
+    if(surveyOn)list.push(["survey","Survey"]);
+  }
   document.getElementById("tabs").innerHTML=list.map(([id,lbl])=>`<button class="tab" id="tab-${id}" onclick="showTab('${id}')">${lbl}</button>`).join("");
   setTimeout(updateOfferBadge,100);
 }
@@ -533,6 +574,8 @@ function showTab(tab){
   else if(tab==="mycusts")renderMyCustomers(c);
   else if(tab==="offers"){renderOffers(c);markOffersSeen();}
   else if(tab==="map")renderMap(c);
+  else if(tab==="survey")renderSurvey(c);
+  else if(tab==="suppliers")renderSuppliers(c);
 }
 
 // ---- LOG VISIT ----
@@ -1373,6 +1416,15 @@ async function renderAdmin(c){
     const pinWarning=missingPins.length?`<div style="background:#fce8ee;border:1px solid #f0a0b8;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#8a0a2a;font-weight:600">&#9888; ${missingPins.length} rep${missingPins.length>1?"s have":"has"} no PIN set: ${missingPins.join(", ")}. They cannot log in until a PIN is assigned.</div>`:"";
     c.innerHTML=`
     <div class="card">
+      <div class="card-ttl">&#128203; Customer Survey</div>
+      <div class="issues-toggle-row">
+        <label id="survey-toggle-lbl">${window._surveyEnabled?"Survey is ON — visible to all reps":"Survey is OFF — hidden"}</label>
+        <button class="tog${window._surveyEnabled?" on":""}" id="survey-tog" onclick="toggleSurvey()"><div class="tog-dot"></div></button>
+      </div>
+      <button class="export-btn" style="width:100%;margin-top:10px" onclick="exportSurveys()">⬇ Export Survey Responses (CSV)</button>
+      <div class="msg" id="survey-admin-msg"></div>
+    </div>
+    <div class="card">
       <div class="card-ttl">PIN Management</div>
       ${pinWarning}
       <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Every rep must have a PIN to access the app. PINs must be unique across all users.</div>
@@ -1476,6 +1528,291 @@ async function delCust(id,name){
   if(!confirm('Delete "'+name+'"? Cannot be undone.'))return;
   try{await dbDelete("customers",id);window._aCusts=window._aCusts.filter(c=>c.id!==id);filterAdmin();}
   catch(e){alert("Error: "+e.message);}
+}
+
+
+// ============================================================
+// SURVEY SETTING
+// ============================================================
+async function loadSurveySetting(){
+  try{
+    const s=await dbGet("app_settings","select=value&key=eq.survey_enabled&limit=1");
+    window._surveyEnabled=s.length?s[0].value==="true":false;
+  }catch(e){window._surveyEnabled=false;}
+}
+
+const SURVEY_PROBLEMS=["Staff shortages","Prices","Deliveries","Product range","Shortage of work","Re-works","Colour matching","Stock availability","Technical support","Insurance work rates","Late payments","Competitor pricing","Cash flow","Product quality","Apprentice recruitment","Energy costs"];
+
+let surveyCustomer="",surveyDD=-1;
+
+// ============================================================
+// CUSTOMER SURVEY TAB
+// ============================================================
+function renderSurvey(c){
+  surveyCustomer="";surveyDD=-1;
+  const probOpts=`<option value="">-- Select a problem --</option>`+SURVEY_PROBLEMS.map(p=>`<option value="${p}">${p}</option>`).join("")+`<option value="__other__">Other (type your own)</option>`;
+  c.innerHTML=`
+  <div id="survey-success" class="success-banner">\u2713 Survey response saved!</div>
+  <div class="card">
+    <div class="card-ttl">&#128203; Customer Problems Survey</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Ask the customer for their top 3 problems right now. Pick from the list or type your own.</div>
+    <div class="field"><label>Date</label>
+      <input type="date" id="sv-date" value="${todayISO()}">
+    </div>
+    <div class="field"><label>Customer <span class="req">*</span></label>
+      <div class="cust-wrap">
+        <input type="text" class="cust-input" id="sv-cust" placeholder="Type to search..." autocomplete="off" oninput="filterSvCust()" onfocus="openSvDD()" onblur="setTimeout(closeSvDD,200)">
+        <div class="cust-dd" id="sv-dd"></div>
+      </div>
+    </div>
+    ${[1,2,3].map(n=>`
+    <div class="field">
+      <label>Problem ${n}${n===1?' <span class="req">*</span>':''}</label>
+      <select id="sv-p${n}-sel" onchange="svProbChange(${n})">${probOpts}</select>
+      <input type="text" id="sv-p${n}-txt" placeholder="Type the problem..." style="display:none;margin-top:6px">
+    </div>`).join("")}
+    <button class="submit-btn" id="sv-btn" onclick="submitSurvey()">Save Survey Response</button>
+  </div>`;
+}
+function svProbChange(n){
+  const sel=document.getElementById(`sv-p${n}-sel`);
+  const txt=document.getElementById(`sv-p${n}-txt`);
+  txt.style.display=sel.value==="__other__"?"block":"none";
+  if(sel.value==="__other__")txt.focus();
+}
+function filterSvCust(){
+  surveyDD=-1;const q=document.getElementById("sv-cust").value.toLowerCase();const dd=document.getElementById("sv-dd");
+  if(!q){dd.style.display="none";return;}
+  const m=myCustomers.filter(c=>c.toLowerCase().includes(q)).slice(0,60);
+  if(!m.length){dd.style.display="none";return;}
+  dd.innerHTML=m.map(c=>`<div class="cust-opt" onmousedown="pickSvCust(this.dataset.n)" data-n="${c.replace(/"/g,'&quot;')}">  ${c}</div>`).join("");
+  dd.style.display="block";
+}
+function openSvDD(){if(document.getElementById("sv-cust").value)filterSvCust();}
+function closeSvDD(){const d=document.getElementById("sv-dd");if(d)d.style.display="none";}
+function pickSvCust(name){surveyCustomer=name;document.getElementById("sv-cust").value=name;closeSvDD();}
+function getSvProblem(n){
+  const sel=document.getElementById(`sv-p${n}-sel`).value;
+  if(sel==="__other__")return document.getElementById(`sv-p${n}-txt`).value.trim();
+  return sel;
+}
+async function submitSurvey(){
+  const cust=surveyCustomer||document.getElementById("sv-cust").value.trim();
+  const date=document.getElementById("sv-date").value;
+  const p1=getSvProblem(1),p2=getSvProblem(2),p3=getSvProblem(3);
+  if(!cust){alert("Please select a customer.");return;}
+  if(!p1){alert("Please enter at least Problem 1.");return;}
+  const btn=document.getElementById("sv-btn");btn.disabled=true;btn.textContent="Saving...";
+  try{
+    await dbPost("surveys",{rep:currentRep,customer:cust,survey_date:date,problem1:p1,problem2:p2,problem3:p3});
+    const banner=document.getElementById("survey-success");banner.style.display="block";banner.scrollIntoView({behavior:"smooth"});
+    setTimeout(()=>banner.style.display="none",3000);
+    // Reset
+    document.getElementById("sv-cust").value="";surveyCustomer="";
+    [1,2,3].forEach(n=>{document.getElementById(`sv-p${n}-sel`).value="";document.getElementById(`sv-p${n}-txt`).value="";document.getElementById(`sv-p${n}-txt`).style.display="none";});
+  }catch(e){alert("Error: "+e.message);}
+  btn.disabled=false;btn.textContent="Save Survey Response";
+}
+
+// ============================================================
+// SUPPLIERS TAB (Joe only)
+// ============================================================
+async function renderSuppliers(c){
+  if(!isJoeType())return;
+  c.innerHTML=`<div class="loading"><div class="spinner"></div><br>Loading suppliers...</div>`;
+  try{
+    const sups=await dbGet("suppliers_data","select=*&order=name.asc");
+    window._supData=sups;
+    let html=`
+    <div class="metrics">
+      <div class="metric"><div class="metric-val">${sups.length}</div><div class="metric-lbl">Suppliers tracked</div></div>
+      <div class="metric"><div class="metric-val">${sups.filter(s=>s.spend_target>0).length}</div><div class="metric-lbl">Active rebate targets</div></div>
+    </div>
+    <button class="add-btn" style="width:100%;padding:11px;margin-bottom:12px" onclick="editSupplier(null)">+ Add Supplier</button>`;
+    if(!sups.length){
+      html+=`<div class="empty"><div class="empty-ico">&#128230;</div><p>No suppliers added yet.</p></div>`;
+    } else {
+      sups.forEach(s=>{html+=supplierCardHtml(s);});
+    }
+    c.innerHTML=html;
+  }catch(e){c.innerHTML=`<div class="empty"><p>Error: ${e.message}</p></div>`;}
+}
+
+function calcSupplierStatus(s){
+  // Auto status based on spend vs target and rebate period
+  if(!s.spend_target||s.spend_target<=0)return{label:"No target",cls:"b-unv"};
+  const pct=s.spend_ytd/s.spend_target;
+  // Rough period-based logic
+  const now=new Date();const month=now.getMonth(); // 0-11
+  const period=(s.rebate_period||"").toLowerCase();
+  let fractionElapsed;
+  if(period.includes("quarter")){
+    fractionElapsed=((month%3)+1)/3;
+  } else {
+    fractionElapsed=(month+1)/12;
+  }
+  // On track if pct >= fractionElapsed * 0.9
+  if(pct>=fractionElapsed*0.95)return{label:"On target",cls:"b-act"};
+  if(pct>=fractionElapsed*0.6)return{label:"Review needed",cls:"b-risk"};
+  return{label:"At risk",cls:"b-lap"};
+}
+
+function supplierCardHtml(s){
+  const status=calcSupplierStatus(s);
+  const pct=s.spend_target>0?Math.min(100,Math.round(s.spend_ytd/s.spend_target*100)):0;
+  const tiers=parseTiers(s.rebate_tiers);
+  const currentTier=getCurrentTier(tiers,s.spend_ytd);
+  const deals=(s.special_deals||"").split("\n").filter(Boolean);
+  const prodRebates=(s.product_rebates||"").split("\n").filter(Boolean);
+  return `<div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:13px 15px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:700">${s.name}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${[s.rebate_period?s.rebate_period+" rebate":"",s.payment_terms].filter(Boolean).join(" \xb7 ")||"No terms set"}</div>
+      </div>
+      <span class="badge ${status.cls}">${status.label}</span>
+    </div>
+    <div style="padding:13px 15px">
+      ${tiers.length?`<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Rebate tiers</div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px">
+        ${tiers.map(t=>{const isCur=currentTier&&t.threshold===currentTier.threshold;return `<div style="display:flex;justify-content:space-between;align-items:center;background:${isCur?'#e8f5d4':'var(--lg)'};border:${isCur?'1px solid #b8d98a':'1px solid transparent'};border-radius:7px;padding:7px 10px">
+          <span style="font-size:12px;color:${isCur?'#3a5a10':'var(--muted)'};font-weight:${isCur?700:400}">Spend &gt; \xa3${Number(t.threshold).toLocaleString()}</span>
+          <span style="font-size:13px;font-weight:700;color:${isCur?'#3a5a10':'var(--text)'}">${t.rate}%${isCur?' — current':''}</span>
+        </div>`;}).join("")}
+      </div>`:""}
+      ${s.spend_target>0?`<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Spend vs target</div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px">
+        <span>\xa3${Number(s.spend_ytd).toLocaleString()} YTD</span><span>\xa3${Number(s.spend_target).toLocaleString()} target</span>
+      </div>
+      <div style="height:8px;background:var(--lg);border-radius:99px;overflow:hidden;margin-bottom:10px"><div style="height:8px;background:var(--g);border-radius:99px;width:${pct}%"></div></div>
+      <div style="font-size:11px;color:#3a5a10;font-weight:600;margin-bottom:12px">${pct}% of target</div>`:""}
+      ${prodRebates.length?`<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Product line rebates</div>
+      <div style="margin-bottom:12px">${prodRebates.map(p=>`<div style="font-size:12px;padding:4px 0;border-bottom:.5px solid #f0f4e8">${p}</div>`).join("")}</div>`:""}
+      ${deals.length?`<div style="font-size:11px;font-weight:700;color:#8a5a00;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">&#11088; Special deals</div>
+      <div style="margin-bottom:12px">${deals.map(d=>`<div style="font-size:12px;padding:6px 10px;background:#fff8e6;border:1px solid #f0d060;border-radius:7px;margin-bottom:4px;color:#6a4a00">${d}</div>`).join("")}</div>`:""}
+      ${s.rep_name?`<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Supplier rep</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600">${s.rep_name}</div>
+        ${s.rep_phone?`<a href="tel:${s.rep_phone}" style="font-size:12px;color:var(--g);font-weight:600">${s.rep_phone}</a>`:""}
+      </div>`:""}
+      ${s.settlement_discount?`<div style="font-size:12px;color:var(--muted);margin-bottom:8px"><strong>Settlement discount:</strong> ${s.settlement_discount}</div>`:""}
+      ${s.notes?`<div style="font-size:12px;color:var(--muted);background:var(--lg);border-radius:7px;padding:8px 10px;line-height:1.5;margin-bottom:12px">${s.notes}</div>`:""}
+      <div style="display:flex;gap:8px">
+        ${s.price_list_url?`<a href="${s.price_list_url}" target="_blank" class="export-btn" style="flex:1;text-align:center;text-decoration:none">Price list</a>`:""}
+        <button class="export-btn" style="flex:1" onclick="editSupplier(${s.id})">Edit</button>
+        <button class="del-btn" onclick="delSupplier2(${s.id},'${esc(s.name)}')">Delete</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function parseTiers(str){
+  if(!str)return[];
+  // Format: "80000:3.0\n120000:4.5\n160000:6.0"
+  return str.split("\n").filter(Boolean).map(line=>{
+    const [threshold,rate]=line.split(":");
+    return{threshold:parseFloat(threshold)||0,rate:rate?rate.trim():"0"};
+  }).sort((a,b)=>a.threshold-b.threshold);
+}
+function getCurrentTier(tiers,spend){
+  let current=null;
+  for(const t of tiers){if(spend>=t.threshold)current=t;}
+  return current;
+}
+
+async function editSupplier(id){
+  let s={name:"",payment_terms:"",settlement_discount:"",rebate_period:"",rebate_tiers:"",spend_ytd:0,spend_target:0,product_rebates:"",special_deals:"",rep_name:"",rep_phone:"",price_list_url:"",notes:""};
+  if(id){const found=(window._supData||[]).find(x=>x.id===id);if(found)s=found;}
+  const mc=document.getElementById("edit-modal-container");
+  mc.innerHTML=`<div class="edit-modal-overlay">
+  <div class="edit-modal">
+    <div class="edit-modal-ttl">${id?"Edit":"Add"} Supplier</div>
+    <div class="field"><label>Supplier Name <span class="req">*</span></label><input type="text" id="sup-name" value="${(s.name||'').replace(/"/g,'&quot;')}"></div>
+    <div class="field"><label>Payment Terms</label><input type="text" id="sup-terms" value="${(s.payment_terms||'').replace(/"/g,'&quot;')}" placeholder="e.g. 30 days EOM"></div>
+    <div class="field"><label>Settlement Discount</label><input type="text" id="sup-settle" value="${(s.settlement_discount||'').replace(/"/g,'&quot;')}" placeholder="e.g. 2.5% within 7 days"></div>
+    <div class="field"><label>Rebate Period</label><select id="sup-period"><option value="">-- Not set --</option><option${s.rebate_period==="Annual"?" selected":""}>Annual</option><option${s.rebate_period==="Quarterly"?" selected":""}>Quarterly</option></select></div>
+    <div class="field"><label>Rebate Tiers</label>
+      <textarea id="sup-tiers" style="width:100%;min-height:70px;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical" placeholder="One per line: threshold:rate&#10;80000:3.0&#10;120000:4.5&#10;160000:6.0">${s.rebate_tiers||""}</textarea>
+      <div class="field-hint">One tier per line as spend:rate \u2014 e.g. 80000:3.0</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div class="field" style="flex:1"><label>Spend YTD (\xa3)</label><input type="number" id="sup-ytd" value="${s.spend_ytd||0}"></div>
+      <div class="field" style="flex:1"><label>Spend Target (\xa3)</label><input type="number" id="sup-target" value="${s.spend_target||0}"></div>
+    </div>
+    <div class="field"><label>Product Line Rebates</label>
+      <textarea id="sup-prod" style="width:100%;min-height:60px;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical" placeholder="One per line&#10;Aquamax waterborne +1.5%&#10;Octoral hardeners +0.5%">${s.product_rebates||""}</textarea>
+    </div>
+    <div class="field"><label>Special Deals</label>
+      <textarea id="sup-deals" style="width:100%;min-height:60px;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical" placeholder="One per line&#10;Buy 20 activators get 2 free">${s.special_deals||""}</textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div class="field" style="flex:1"><label>Rep Name</label><input type="text" id="sup-repname" value="${(s.rep_name||'').replace(/"/g,'&quot;')}"></div>
+      <div class="field" style="flex:1"><label>Rep Phone</label><input type="text" id="sup-repphone" value="${(s.rep_phone||'').replace(/"/g,'&quot;')}"></div>
+    </div>
+    <div class="field"><label>Price List URL (OneDrive)</label><input type="text" id="sup-pricelist" value="${(s.price_list_url||'').replace(/"/g,'&quot;')}" placeholder="https://..."></div>
+    <div class="field"><label>Notes</label><textarea id="sup-notes" style="width:100%;min-height:60px;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical">${s.notes||""}</textarea></div>
+    <div class="modal-btns">
+      <button class="modal-cancel-btn" onclick="closeEditModal()">Cancel</button>
+      <button class="modal-save-btn" onclick="saveSupplier(${id||'null'})">Save</button>
+    </div>
+  </div></div>`;
+}
+async function saveSupplier(id){
+  const name=document.getElementById("sup-name").value.trim();
+  if(!name){alert("Supplier name is required.");return;}
+  const data={
+    name,
+    payment_terms:document.getElementById("sup-terms").value.trim(),
+    settlement_discount:document.getElementById("sup-settle").value.trim(),
+    rebate_period:document.getElementById("sup-period").value,
+    rebate_tiers:document.getElementById("sup-tiers").value.trim(),
+    spend_ytd:parseFloat(document.getElementById("sup-ytd").value)||0,
+    spend_target:parseFloat(document.getElementById("sup-target").value)||0,
+    product_rebates:document.getElementById("sup-prod").value.trim(),
+    special_deals:document.getElementById("sup-deals").value.trim(),
+    rep_name:document.getElementById("sup-repname").value.trim(),
+    rep_phone:document.getElementById("sup-repphone").value.trim(),
+    price_list_url:document.getElementById("sup-pricelist").value.trim(),
+    notes:document.getElementById("sup-notes").value.trim()
+  };
+  try{
+    if(id)await dbPatch("suppliers_data","id=eq."+id,data);
+    else await dbPost("suppliers_data",data);
+    closeEditModal();
+    renderSuppliers(document.getElementById("content"));
+  }catch(e){alert("Error: "+e.message);}
+}
+async function delSupplier2(id,name){
+  if(!confirm("Delete supplier "+name+"?"))return;
+  try{await dbDelete("suppliers_data",id);renderSuppliers(document.getElementById("content"));}
+  catch(e){alert("Error: "+e.message);}
+}
+
+
+async function toggleSurvey(){
+  const newVal=!window._surveyEnabled;
+  try{
+    const ex=await dbGet("app_settings","select=key&key=eq.survey_enabled&limit=1");
+    if(ex.length)await dbPatch("app_settings","key=eq.survey_enabled",{value:newVal?"true":"false"});
+    else await dbPost("app_settings",{key:"survey_enabled",value:newVal?"true":"false"});
+    window._surveyEnabled=newVal;
+    document.getElementById("survey-tog").classList.toggle("on",newVal);
+    document.getElementById("survey-toggle-lbl").textContent=newVal?"Survey is ON — visible to all reps":"Survey is OFF — hidden";
+    buildTabs();
+  }catch(e){alert("Error: "+e.message);}
+}
+async function exportSurveys(){
+  const msg=document.getElementById("survey-admin-msg");
+  try{
+    const surveys=await dbGet("surveys","select=*&order=created_at.desc&limit=10000");
+    if(!surveys.length){showMsg(msg,"No survey responses yet.","info");return;}
+    const hdrs=["Date","Rep","Customer","Problem 1","Problem 2","Problem 3"];
+    const rows=surveys.map(s=>[fmtDate(s.survey_date),s.rep,s.customer,s.problem1||"",s.problem2||"",s.problem3||""].map(f=>`"${String(f).replace(/"/g,'\\"')}"`).join(","));
+    const csv=[hdrs.join(","),...rows].join("\n");
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+    a.download="IPS_Customer_Survey_"+todayISO()+".csv";a.click();
+    showMsg(msg,"\u2713 Exported "+surveys.length+" responses.","ok");
+  }catch(e){showMsg(msg,"Export failed: "+e.message,"err");}
 }
 
 initApp();
