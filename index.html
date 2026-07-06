@@ -1104,6 +1104,7 @@ async function renderProfile(c,custName){
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${!isDirector()?`<button class="log-visit-btn" onclick="logForCust('${esc(custName)}')">+ Log Visit</button>`:""}
           ${isJoeType()&&cu.is_target?`<button class="log-visit-btn" style="background:var(--gold);color:#5a3a00" onclick="convertToCustomer('${esc(custName)}')">Convert to Customer</button>`:""}
+          ${isJoeType()?`<button class="log-visit-btn" style="background:#fff;color:var(--g);border:1.5px solid var(--g)" onclick="reassignCustomer('${esc(custName)}','${esc(cu.rep||"")}')">Reassign</button>`:""}
         </div>
       </div>
       <div class="profile-stats">
@@ -1454,6 +1455,11 @@ async function renderAdmin(c){
       <div id="offer-preview" style="margin:8px 0"></div>
       <div class="msg" id="offer-msg"></div>
       <div id="offer-admin-list" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <div class="card-ttl">Reassign Customers</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Move all of one rep's customers to another rep in one go.</div>
+      <button class="add-btn" style="width:100%;padding:10px" onclick="openBulkReassign()">Bulk Reassign by Rep</button>
     </div>
     <div class="card">
       <div class="card-ttl">Add New Customer</div>
@@ -1813,6 +1819,88 @@ async function exportSurveys(){
     a.download="IPS_Customer_Survey_"+todayISO()+".csv";a.click();
     showMsg(msg,"\u2713 Exported "+surveys.length+" responses.","ok");
   }catch(e){showMsg(msg,"Export failed: "+e.message,"err");}
+}
+
+// ============================================================
+// REASSIGN CUSTOMER (Joe only)
+// ============================================================
+function reassignCustomer(custName,currentRepName){
+  const repOpts=REPS.filter(r=>!DIRECTORS.includes(r)&&!BRANCHES.includes(r)).map(r=>`<option value="${r}"${r===currentRepName?" selected":""}>${r}</option>`).join("");
+  const mc=document.getElementById("edit-modal-container");
+  mc.innerHTML=`<div class="edit-modal-overlay">
+  <div class="edit-modal">
+    <div class="edit-modal-ttl">Reassign &mdash; ${custName}</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Move this customer to another rep. Past visits stay credited to whoever logged them.</div>
+    <div class="field"><label>Currently assigned to</label>
+      <input type="text" value="${currentRepName||'Unassigned'}" disabled style="background:var(--lg);color:var(--muted)">
+    </div>
+    <div class="field"><label>Reassign to <span class="req">*</span></label>
+      <select id="reassign-rep"><option value="">-- Select rep --</option>${repOpts}</select>
+    </div>
+    <div class="msg" id="reassign-msg"></div>
+    <div class="modal-btns">
+      <button class="modal-cancel-btn" onclick="closeEditModal()">Cancel</button>
+      <button class="modal-save-btn" onclick="doReassign('${esc(custName)}')">Reassign</button>
+    </div>
+  </div></div>`;
+}
+async function doReassign(custName){
+  const newRep=document.getElementById("reassign-rep").value;
+  const msg=document.getElementById("reassign-msg");
+  if(!newRep){showMsg(msg,"Please select a rep.","err");return;}
+  try{
+    await dbPatch("customers","name=eq."+encodeURIComponent(custName),{rep:newRep});
+    closeEditModal();
+    // Refresh profile
+    renderProfile(document.getElementById("content"),custName);
+  }catch(e){showMsg(msg,"Error: "+e.message,"err");}
+}
+
+// ============================================================
+// BULK REASSIGN (Admin, Joe only)
+// ============================================================
+async function openBulkReassign(){
+  const repOpts=REPS.filter(r=>!DIRECTORS.includes(r)).map(r=>`<option value="${r}">${r}</option>`).join("");
+  const mc=document.getElementById("edit-modal-container");
+  mc.innerHTML=`<div class="edit-modal-overlay">
+  <div class="edit-modal">
+    <div class="edit-modal-ttl">Bulk Reassign Customers</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Move all customers from one rep to another. Useful when a rep leaves. Past visits stay credited to the original rep.</div>
+    <div class="field"><label>Move all customers FROM <span class="req">*</span></label>
+      <select id="bulk-from"><option value="">-- Select rep --</option>${repOpts}</select>
+    </div>
+    <div class="field"><label>Reassign them TO <span class="req">*</span></label>
+      <select id="bulk-to"><option value="">-- Select rep --</option>${repOpts}</select>
+    </div>
+    <div id="bulk-count" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+    <div class="msg" id="bulk-msg"></div>
+    <div class="modal-btns">
+      <button class="modal-cancel-btn" onclick="closeEditModal()">Cancel</button>
+      <button class="modal-save-btn" onclick="doBulkReassign()">Reassign All</button>
+    </div>
+  </div></div>`;
+  // Show count when 'from' changes
+  document.getElementById("bulk-from").addEventListener("change",async function(){
+    const from=this.value;const cnt=document.getElementById("bulk-count");
+    if(!from){cnt.textContent="";return;}
+    try{
+      const custs=await dbGet("customers","select=id&rep=eq."+encodeURIComponent(from));
+      cnt.textContent=custs.length+" customer"+(custs.length!==1?"s":"")+" will be moved.";
+    }catch(e){cnt.textContent="";}
+  });
+}
+async function doBulkReassign(){
+  const from=document.getElementById("bulk-from").value;
+  const to=document.getElementById("bulk-to").value;
+  const msg=document.getElementById("bulk-msg");
+  if(!from||!to){showMsg(msg,"Please select both reps.","err");return;}
+  if(from===to){showMsg(msg,"From and To must be different reps.","err");return;}
+  if(!confirm("Move ALL customers from "+from+" to "+to+"? This cannot be undone."))return;
+  try{
+    await dbPatch("customers","rep=eq."+encodeURIComponent(from),{rep:to});
+    showMsg(msg,"\u2713 All customers moved from "+from+" to "+to+".","ok");
+    setTimeout(()=>{closeEditModal();renderAdmin(document.getElementById("content"));},1200);
+  }catch(e){showMsg(msg,"Error: "+e.message,"err");}
 }
 
 initApp();
