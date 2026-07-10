@@ -553,7 +553,7 @@ function buildTabs(){
     list=[["dashboard","Dashboard"],["heatmap","Heat Map"],["map","Map"],["log","Log Visit"],["history","All History"],["offers","Offers"],["suppliers","Suppliers"],["admin","Admin"]];
     if(surveyOn)list.splice(6,0,["survey","Survey"]);
   } else if(isDir){
-    list=[["dashboard","Dashboard"],["heatmap","Heat Map"],["offers","Offers"]];
+    list=[["dashboard","Dashboard"],["heatmap","Heat Map"],["history","All History"],["offers","Offers"]];
   } else {
     list=[["mydash","My Dashboard"],["mycusts","My Customers"],["log","Log Visit"],["history","My Visits"],["offers","Offers"]];
     if(surveyOn)list.push(["survey","Survey"]);
@@ -838,10 +838,11 @@ function shareVisitById(id){
 
 async function renderHistory(c){
   const isJoe=isJoeType();
+  const seesAll=isJoeType()||isDirector();
   const vtypeOpts=`<option value="">All types</option>`+VTYPES.map(t=>`<option value="${t}">${t}</option>`).join("");
   c.innerHTML=`
   <div class="date-filter">
-    ${isJoe?`<label>Rep:</label><select id="hf-rep" onchange="applyHistoryFilter()"><option value="">All reps</option></select>`:""}
+    ${seesAll?`<label>Rep:</label><select id="hf-rep" onchange="applyHistoryFilter()"><option value="">All reps</option></select>`:""}
     <label>Type:</label>
     <select id="hf-type" onchange="applyHistoryFilter()">${vtypeOpts}</select>
     <label>From:</label>
@@ -851,7 +852,7 @@ async function renderHistory(c){
     <button class="df-btn" onclick="applyHistoryFilter()">Filter</button>
   </div>
   <div id="history-results"><div class="loading"><div class="spinner"></div><br>Loading...</div></div>`;
-  if(isJoe){
+  if(seesAll){
     try{
       const reps=await dbGet("visits","select=rep");
       const repList=[...new Set(reps.map(v=>v.rep))].sort();
@@ -866,13 +867,14 @@ async function applyHistoryFilter(){
   const res=document.getElementById("history-results");if(!res)return;
   res.innerHTML=`<div class="loading"><div class="spinner"></div><br>Loading...</div>`;
   const isJoe=isJoeType();
+  const seesAll=isJoeType()||isDirector();
   const from=(document.getElementById("hf-from")||{}).value||"1970-01-01";
   const to=(document.getElementById("hf-to")||{}).value||todayISO();
   const repFilter=(document.getElementById("hf-rep")||{}).value||"";
   const typeFilter=(document.getElementById("hf-type")||{}).value||"";
   try{
     let params=`select=*&visit_date=gte.${from}&visit_date=lte.${to}&order=visit_date.desc,created_at.desc&limit=500`;
-    if(!isJoe)params+=`&rep=eq.${encodeURIComponent(currentRep)}`;
+    if(!seesAll)params+=`&rep=eq.${encodeURIComponent(currentRep)}`;
     else if(repFilter)params+=`&rep=eq.${encodeURIComponent(repFilter)}`;
     if(typeFilter)params+=`&visit_type=eq.${encodeURIComponent(typeFilter)}`;
     const vs=await dbGet("visits",params);
