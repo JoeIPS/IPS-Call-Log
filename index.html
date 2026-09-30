@@ -853,12 +853,15 @@ async function renderHistory(c){
   </div>
   <div id="history-results"><div class="loading"><div class="spinner"></div><br>Loading...</div></div>`;
   if(seesAll){
+    const known=[...REPS.filter(r=>!DIRECTORS.includes(r)),...BRANCHES];
+    let fromVisits=[];
     try{
-      const reps=await dbGet("visits","select=rep");
-      const repList=[...new Set(reps.map(v=>v.rep))].sort();
-      const sel=document.getElementById("hf-rep");
-      repList.forEach(r=>{const o=document.createElement("option");o.value=r;o.textContent=r;sel.appendChild(o);});
+      const vr=await dbGet("visits","select=rep&order=created_at.desc&limit=5000");
+      fromVisits=vr.map(v=>v.rep);
     }catch(e){}
+    const repList=[...new Set([...known,...fromVisits].filter(Boolean))].sort();
+    const sel=document.getElementById("hf-rep");
+    if(sel)repList.forEach(r=>{const o=document.createElement("option");o.value=r;o.textContent=r;sel.appendChild(o);});
   }
   applyHistoryFilter();
 }
