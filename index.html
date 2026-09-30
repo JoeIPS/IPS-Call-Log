@@ -845,6 +845,8 @@ async function renderHistory(c){
     ${seesAll?`<label>Rep:</label><select id="hf-rep" onchange="applyHistoryFilter()"><option value="">All reps</option></select>`:""}
     <label>Type:</label>
     <select id="hf-type" onchange="applyHistoryFilter()">${vtypeOpts}</select>
+    <label>Issues:</label>
+    <select id="hf-issues" onchange="applyHistoryFilter()"><option value="">All</option><option value="yes">Issues only</option><option value="no">No issues</option></select>
     <label>From:</label>
     <input type="date" id="hf-from" value="${yesterdayISO()}">
     <label>To:</label>
@@ -880,6 +882,9 @@ async function applyHistoryFilter(){
     if(!seesAll)params+=`&rep=eq.${encodeURIComponent(currentRep)}`;
     else if(repFilter)params+=`&rep=eq.${encodeURIComponent(repFilter)}`;
     if(typeFilter)params+=`&visit_type=eq.${encodeURIComponent(typeFilter)}`;
+    const issuesFilter=(document.getElementById("hf-issues")||{}).value||"";
+    if(issuesFilter==="yes")params+=`&has_issues=eq.true`;
+    else if(issuesFilter==="no")params+=`&has_issues=eq.false`;
     const vs=await dbGet("visits",params);
     if(!vs.length){res.innerHTML=`<div class="empty"><div class="empty-ico">&#128203;</div><p>No visits found for that period.</p></div>`;return;}
     res.innerHTML=vs.map(v=>visitHtml(v,true,isJoe)).join("");
