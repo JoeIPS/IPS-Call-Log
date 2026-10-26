@@ -1478,7 +1478,8 @@ async function renderAdmin(c){
     </div>
     <div class="card">
       <div class="card-ttl">Add New Customer</div>
-      <div class="add-row"><input type="text" id="a-name" placeholder="Customer name *"><select id="a-rep"><option value="">-- No rep --</option>${repsOptHtml}</select><button class="add-btn" onclick="addCust()">+ Add</button></div>
+      <div class="add-row"><input type="text" id="a-name" placeholder="Customer name *"><input type="text" id="a-postcode" placeholder="Postcode" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"><select id="a-rep"><option value="">-- No rep --</option>${repsOptHtml}</select><button class="add-btn" onclick="addCust()">+ Add</button></div>
+      <div class="field-hint">Postcode is optional but needed for the account to appear on the maps.</div>
       <div class="msg" id="add-msg"></div>
     </div>
     <div class="card">
@@ -1541,8 +1542,12 @@ function filterAdmin(){
 }
 async function addCust(){
   const name=document.getElementById("a-name").value.trim();const rep=document.getElementById("a-rep").value;const msg=document.getElementById("add-msg");
-  if(!name){showMsg(msg,"Name required.","err");return;}const btn=document.querySelector(".add-btn");btn.disabled=true;
-  try{await dbPost("customers",{name,rep,paint_brand:"",main_supplier:"",secondary_supplier:"",customer_notes:""});document.getElementById("a-name").value="";showMsg(msg,"\u2713 "+name+" added.","ok");await renderAdmin(document.getElementById("content"));}
+  const postcode=(document.getElementById("a-postcode")||{}).value.trim().toUpperCase()||"";
+  if(!name){showMsg(msg,"Name required.","err");return;}
+  if(postcode&&!/^[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}$/.test(postcode)){showMsg(msg,"That postcode doesn't look valid (e.g. BS1 4DJ). Leave blank if unknown.","err");return;}
+  const district=postcode?((postcode.match(/^([A-Z]{1,2}\d{1,2}[A-Z]?)/)||[])[1]||""):"";
+  const btn=document.querySelector(".add-btn");btn.disabled=true;
+  try{await dbPost("customers",{name,rep,paint_brand:"",main_supplier:"",secondary_supplier:"",customer_notes:"",postcode,district});document.getElementById("a-name").value="";if(document.getElementById("a-postcode"))document.getElementById("a-postcode").value="";showMsg(msg,"\u2713 "+name+" added.","ok");await renderAdmin(document.getElementById("content"));}
   catch(e){showMsg(msg,"Error: "+e.message,"err");}btn.disabled=false;
 }
 async function delCust(id,name){
