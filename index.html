@@ -1958,9 +1958,17 @@ async function renderBristol(c){
     s.onload=res;s.onerror=rej;document.head.appendChild(s);
   });
 
-  // Live customer -> rep ownership
+  // Live customer -> rep ownership (paginated: Supabase caps a single request at 1000 rows)
   let custs=[];
-  try{custs=await dbGet("customers","select=name,rep,postcode&limit=5000");}catch(e){
+  try{
+    let page=0;const size=1000;
+    while(true){
+      const rows=await dbGet("customers","select=name,rep,postcode&order=name.asc&limit="+size+"&offset="+(page*size));
+      custs=custs.concat(rows);
+      if(rows.length<size)break;
+      page++;if(page>20)break;
+    }
+  }catch(e){
     c.innerHTML=`<div class="empty"><p>Error loading: ${e.message}</p></div>`;return;
   }
   // Static postcode lookup by name (fallback when DB postcode blank)
